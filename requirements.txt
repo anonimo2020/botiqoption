@@ -1,0 +1,5 @@
+flask
+iqoptionapi
+numpy
+requests
+ta-lib
