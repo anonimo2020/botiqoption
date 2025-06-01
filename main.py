@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 import threading
 import time
+import numpy as np
 import logging
 from iqoptionapi.stable_api import IQ_Option
 
@@ -9,6 +10,25 @@ IQ_PASSWORD = "Octubre2001"
 
 app = Flask(__name__)
 
+def rsi(closes, period=14):
+    deltas = np.diff(closes)
+    seed = deltas[:period]
+    up = seed[seed >= 0].sum() / period
+    down = -seed[seed < 0].sum() / period
+    rs = up / down if down != 0 else 0
+    rsi = np.zeros_like(closes)
+    rsi[:period] = 100. - 100. / (1. + rs)
+
+    for i in range(period, len(closes)):
+        delta = deltas[i - 1]
+        upval = max(delta, 0)
+        downval = -min(delta, 0)
+        up = (up * (period - 1) + upval) / period
+        down = (down * (period - 1) + downval) / period
+        rs = up / down if down != 0 else 0
+        rsi[i] = 100. - 100. / (1. + rs)
+    return rsi
+
 def bot_logic():
     logging.basicConfig(level=logging.INFO)
     Iq = IQ_Option(IQ_EMAIL, IQ_PASSWORD)
@@ -16,7 +36,13 @@ def bot_logic():
     if not check:
         print(f"Error de conexión: {reason}")
         return
+
     Iq.change_balance("PRACTICE")
+    candles = Iq.get_candles("EURUSD", 60, 100, time.time())
+    closes = np.array([c['close'] for c in candles], dtype=np.float32)
+    calculated_rsi = rsi(closes)[-1]
+    print(f"RSI actual: {calculated_rsi:.2f}")
+
     Iq.buy(1, "EURUSD", "call", 1)
     print("Operación enviada.")
 
@@ -24,7 +50,7 @@ def bot_logic():
 def start_bot():
     try:
         threading.Thread(target=bot_logic, daemon=True).start()
-        return jsonify({"message": "🤖 Bot iniciado correctamente"}), 200
+        return jsonify({"message": "🤖 Bot sin TA-Lib iniciado correctamente"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
