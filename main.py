@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import threading
 import time
 import numpy as np
@@ -9,6 +10,7 @@ IQ_EMAIL = "sebaselwspo@gmail.com"
 IQ_PASSWORD = "Octubre2001"
 
 app = Flask(__name__)
+CORS(app)  # Habilita solicitudes desde cualquier origen
 
 def rsi(closes, period=14):
     deltas = np.diff(closes)
@@ -50,7 +52,7 @@ def bot_logic():
 def start_bot():
     try:
         threading.Thread(target=bot_logic, daemon=True).start()
-        return jsonify({"message": "🤖 Bot sin TA-Lib iniciado correctamente"}), 200
+        return jsonify({"message": "🤖 Bot con CORS iniciado correctamente"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
