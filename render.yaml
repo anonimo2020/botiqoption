@@ -5,7 +5,7 @@ services:
     env: python
     plan: free
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn main:app --worker-class eventlet --bind 0.0.0.0:5000"
+    startCommand: "gunicorn main:app --worker-class gthread --threads 4 --bind 0.0.0.0:5000"
     envVars:
       - key: IQ_EMAIL
         value: "sebaselwspo@gmail.com"
