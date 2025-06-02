@@ -24,6 +24,9 @@ email = os.getenv("IQ_EMAIL")
 password = os.getenv("IQ_PASSWORD")
 iq = IQ_Option(email, password)
 iq.connect()
+if not iq.check_connect():
+    return jsonify({"error": "No se pudo conectar a IQ Option"}), 500
+
 
 # Configuración de Telegram usando variables de entorno
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
