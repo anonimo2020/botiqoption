@@ -1,11 +1,17 @@
+version: 1
 services:
   - type: web
-    name: iqoption-bot
+    name: iq-option-bot
     env: python
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "python main.py"
     plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn main:app --worker-class eventlet --bind 0.0.0.0:5000"
     envVars:
-      - key: PORT
-        value: 10000
-
+      - key: IQ_EMAIL
+        value: "sebaselwspo@gmail.com"
+      - key: IQ_PASSWORD
+        value: "Octubre2001"
+      - key: TELEGRAM_BOT_TOKEN
+        value: "7787754995:AAEvM36bO9B4SvGA1cr1VP1j-Rx6on5LrjM"
+      - key: TELEGRAM_CHAT_ID
+        value: "100334"
