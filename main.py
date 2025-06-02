@@ -11,7 +11,7 @@ from iqoptionapi.stable_api import IQ_Option
 # Inicializar la aplicación Flask y SocketIO
 app = Flask(__name__)
 CORS(app)  # Permitir CORS para todas las rutas
-socketio = SocketIO(app, cors_allowed_origins="*"))
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
