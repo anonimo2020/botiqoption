@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 import threading
@@ -6,6 +6,7 @@ import requests
 import time
 from iqoptionapi.stable_api import IQ_Option
 from datetime import datetime
+import json
 
 # --- Configuración ---
 IQ_EMAIL = "sebaselwspo@gmail.com"
@@ -101,7 +102,10 @@ def get_symbols():
         symbols = ["EURUSD-OTC", "GBPUSD-OTC", "USDJPY-OTC", "AUDUSD-OTC", "EURJPY-OTC"]
     else:
         symbols = ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "EURJPY"]
-    return jsonify({"symbols": symbols})
+    response = make_response(json.dumps({"symbols": symbols}))
+    response.headers["Content-Type"] = "application/json"
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
 
 # --- Inicio del servidor ---
 if __name__ == "__main__":
