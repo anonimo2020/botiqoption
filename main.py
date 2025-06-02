@@ -53,8 +53,13 @@ def calculate_indicators(candles):
         highs = np.array([float(candle['max']) for candle in candles])
         lows = np.array([float(candle['min']) for candle in candles])
 
-        rsi = 100 - (100 / (1 + (np.mean(np.where(np.diff(closes) > 0, np.diff(closes), 0)) / 
-                                np.mean(np.where(np.diff(closes) < 0, -np.diff(closes), 0)))))
+        delta = np.diff(closes)
+        gain = np.where(delta > 0, delta, 0)
+        loss = np.where(delta < 0, -delta, 0)
+        avg_gain = np.mean(gain[-14:])
+        avg_loss = np.mean(loss[-14:])
+        rs = avg_gain / avg_loss if avg_loss != 0 else 0
+        rsi = 100 - (100 / (1 + rs))
 
         short_ema = np.mean(closes[-12:])
         long_ema = np.mean(closes[-26:])
@@ -82,13 +87,13 @@ def get_signal(ind):
     if not ind:
         return None
 
-    if ind['rsi'] < 30 and ind['macd'] > ind['signal'] and ind['stoch_k'] < 20 and ind['stoch_d'] < 20:
+    if ind['rsi'] < 35 or (ind['macd'] > ind['signal'] and ind['stoch_k'] < 25):
         return 'call'
-    elif ind['rsi'] > 70 and ind['macd'] < ind['signal'] and ind['stoch_k'] > 80 and ind['stoch_d'] > 80:
+    elif ind['rsi'] > 65 or (ind['macd'] < ind['signal'] and ind['stoch_k'] > 75):
         return 'put'
     return None
 
-def run_bot(symbol, initial_amount, martingalas):
+def run_bot(symbol, initial_amount, martingalas, account_type):
     email = os.getenv("IQ_EMAIL")
     password = os.getenv("IQ_PASSWORD")
     iq = IQ_Option(email, password)
@@ -98,7 +103,9 @@ def run_bot(symbol, initial_amount, martingalas):
         send_telegram_message("❌ No se pudo conectar a IQ Option.")
         return
 
-    send_telegram_message(f"🤖 Bot iniciado para *{symbol}* con ${initial_amount}, martingalas: {martingalas}")
+    iq.change_balance(account_type.upper())
+    balance = iq.get_balance()
+    send_telegram_message(f"🤖 Bot iniciado para *{symbol}* con ${initial_amount}, martingalas: {martingalas}\n💼 Tipo de cuenta: *{account_type.upper()}* | Saldo: ${balance:.2f}")
 
     current_amount = initial_amount
     loss_limit = initial_amount * 0.5
@@ -141,11 +148,12 @@ def start_bot():
     symbol = data.get('symbol')
     initial_amount = data.get('amount', 1)
     martingalas = data.get('martingalas', 0)
+    account_type = data.get('account_type', 'PRACTICE')
 
     if not symbol:
         return jsonify({"error": "Símbolo no válido"}), 400
 
-    threading.Thread(target=run_bot, args=(symbol, initial_amount, martingalas)).start()
+    threading.Thread(target=run_bot, args=(symbol, initial_amount, martingalas, account_type)).start()
     return jsonify({"message": "Bot iniciado correctamente."}), 200
 
 def execute_trade(iq, symbol, amount, direction):
