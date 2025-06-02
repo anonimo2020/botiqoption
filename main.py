@@ -9,7 +9,6 @@ import requests
 import os
 import threading
 from iqoptionapi.stable_api import IQ_Option
-import talib
 
 # Inicializar la aplicación Flask y SocketIO
 app = Flask(__name__)
@@ -54,16 +53,25 @@ def calculate_indicators(candles):
         highs = np.array([float(candle['max']) for candle in candles])
         lows = np.array([float(candle['min']) for candle in candles])
 
-        rsi = talib.RSI(closes, timeperiod=14)[-1]
-        macd, macdsignal, _ = talib.MACD(closes, fastperiod=12, slowperiod=26, signalperiod=9)
-        stoch_k, stoch_d = talib.STOCH(highs, lows, closes, fastk_period=14, slowk_period=3, slowd_period=3)
+        rsi = 100 - (100 / (1 + (np.mean(np.where(np.diff(closes) > 0, np.diff(closes), 0)) / 
+                                np.mean(np.where(np.diff(closes) < 0, -np.diff(closes), 0)))))
+
+        short_ema = np.mean(closes[-12:])
+        long_ema = np.mean(closes[-26:])
+        macd = short_ema - long_ema
+        signal = np.mean(closes[-9:])
+
+        lowest_low = np.min(lows[-14:])
+        highest_high = np.max(highs[-14:])
+        stoch_k = 100 * ((closes[-1] - lowest_low) / (highest_high - lowest_low)) if highest_high != lowest_low else 0
+        stoch_d = np.mean([stoch_k] * 3)
 
         return {
             'rsi': rsi,
-            'macd': macd[-1],
-            'signal': macdsignal[-1],
-            'stoch_k': stoch_k[-1],
-            'stoch_d': stoch_d[-1],
+            'macd': macd,
+            'signal': signal,
+            'stoch_k': stoch_k,
+            'stoch_d': stoch_d,
             'price': closes[-1] if len(closes) > 0 else 0
         }
     except Exception as e:
