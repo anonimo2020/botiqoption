@@ -32,8 +32,18 @@ def run_bot(symbol, amount, martingalas, account):
     try:
         Iq = IQ_Option(IQ_EMAIL, IQ_PASSWORD)
         Iq.connect()
-        time.sleep(2)
+        time.sleep(5)
         Iq.change_balance(account)
+
+        if not Iq.check_connect():
+            send_telegram("⚠️ No se pudo conectar con IQ Option.")
+            socketio.emit("error", {"msg": "No se pudo conectar con IQ Option."})
+            return
+
+        if not Iq.get_all_open_time()["binary"].get(symbol, {}).get("open", False):
+            send_telegram(f"❌ El símbolo {symbol} no está disponible en este momento.")
+            socketio.emit("error", {"msg": f"El símbolo {symbol} no está disponible."})
+            return
 
         balance = Iq.get_balance()
         socketio.emit("balance", {"balance": balance})
@@ -110,3 +120,4 @@ def get_symbols():
 # --- Inicio del servidor ---
 if __name__ == "__main__":
     socketio.run(app, host="0.0.0.0", port=10000)
+
