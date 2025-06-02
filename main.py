@@ -33,7 +33,7 @@ def run_bot(symbol, amount, martingalas):
 
         balance = Iq.get_balance()
         send_telegram(f"✅ Bot conectado a IQ Option")
-💼 Balance: ${balance:.2f}")
+  Balance: ${balance:.2f}")
 
         for i in range(martingalas + 1):
             status, order_id = Iq.buy(amount, symbol, "call", 1)
