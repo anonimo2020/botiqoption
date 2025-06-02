@@ -1,8 +1,10 @@
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import threading
 import requests
 import time
+from datetime import datetime
 from iqoptionapi.stable_api import IQ_Option
 
 # --- Configuración ---
@@ -32,20 +34,19 @@ def run_bot(symbol, amount, martingalas):
         Iq.change_balance("PRACTICE")
 
         balance = Iq.get_balance()
-        send_telegram(f"✅ Bot conectado a IQ Option")
-  Balance: ${balance:.2f}")
+        send_telegram(f"Bot conectado a IQ Option\nBalance: ${balance:.2f}")
 
         for i in range(martingalas + 1):
             status, order_id = Iq.buy(amount, symbol, "call", 1)
             if status:
-                send_telegram(f"📈 Operación {i+1}/{martingalas+1} en {symbol} enviada: ${amount:.2f}")
+                send_telegram(f"Operacion {i+1}/{martingalas+1} en {symbol} enviada: ${amount:.2f}")
                 break
             else:
-                send_telegram(f"⚠️ Falló intento {i+1}, duplicando monto")
+                send_telegram(f"Fallo intento {i+1}, duplicando monto")
                 amount *= 2
 
     except Exception as e:
-        send_telegram(f"❌ Error en ejecución del bot: {e}")
+        send_telegram(f"Error en ejecucion del bot: {e}")
 
 # --- API HTTP ---
 @app.route("/start_bot", methods=["POST"])
@@ -56,7 +57,6 @@ def start_bot():
         amount = float(data.get("amount", 1))
         martingalas = int(data.get("martingalas", 2))
 
-        # Detectar si es fin de semana
         weekend = datetime.today().weekday() in [5, 6]
         otc_pairs = {
             "EURUSD": "EURUSD-OTC",
@@ -67,19 +67,14 @@ def start_bot():
 
         if weekend and user_symbol in otc_pairs:
             final_symbol = otc_pairs[user_symbol]
-            send_telegram(f"🌐 Fin de semana detectado. Cambiando {user_symbol} ➜ {final_symbol} (OTC)")
+            send_telegram(f"Fin de semana detectado. Cambiando {user_symbol} -> {final_symbol} (OTC)")
         else:
             final_symbol = user_symbol
 
-        # Enviar confirmación
-        send_telegram(f"🚀 Lanzando bot con parámetros:")
-🔹Activo: {final_symbol}
-💰 Monto: ${amount}
-🔁 Martingalas: {martingalas}")
+        send_telegram(f"Lanzando bot con parametros:\nActivo: {final_symbol}\nMonto: ${amount}\nMartingalas: {martingalas}")
 
-        # Lanzar en hilo aparte
         threading.Thread(target=run_bot, args=(final_symbol, amount, martingalas), daemon=True).start()
-        return jsonify({"message": "✅ Bot lanzado correctamente"}), 200
+        return jsonify({"message": "Bot lanzado correctamente"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
