@@ -1,4 +1,3 @@
-
 from flask import Flask, request, jsonify
 from flask_socketio import SocketIO
 from flask_cors import CORS
@@ -31,7 +30,10 @@ def send_telegram_message(message):
         "text": message,
         "parse_mode": "Markdown"
     }
-    requests.post(url, json=payload)
+    try:
+        requests.post(url, json=payload)
+    except Exception as e:
+        logger.error(f"Error enviando mensaje a Telegram: {e}")
 
 def is_weekend():
     today = datetime.datetime.now().weekday()
@@ -55,6 +57,8 @@ def run_bot(symbol, initial_amount, martingalas):
         send_telegram_message("❌ No se pudo conectar a IQ Option.")
         return
 
+    send_telegram_message(f"🤖 Bot iniciado para *{symbol}* con ${initial_amount}, martingalas: {martingalas}")
+
     current_amount = initial_amount
     total_invested = 0
     loss_limit = initial_amount * 0.5
@@ -75,10 +79,12 @@ def run_bot(symbol, initial_amount, martingalas):
 
         if direction:
             result = execute_trade(iq, symbol, current_amount, direction)
-            logger.info(f"Operación: {direction} en {symbol} con monto {current_amount}. Resultado: {result['result']}")
+            msg = f"📊 Operación: *{direction.upper()}* en *{symbol}* con ${current_amount} → *{result['result']}*\nGanancia: ${result['profit']:.2f}"
+            send_telegram_message(msg)
 
+            logger.info(msg)
             total_invested += current_amount
-            send_telegram_message(f"Capital actual: ${current_amount:.2f}")
+            send_telegram_message(f"💰 Capital actual: ${current_amount:.2f}")
 
             if result['result'] == 'LOSS':
                 current_amount *= 2
