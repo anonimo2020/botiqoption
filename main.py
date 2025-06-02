@@ -47,7 +47,7 @@ def is_weekend():
 def get_symbols():
     """Devuelve los símbolos de trading según el día de la semana."""
     if is_weekend():
-        symbols = ["OTC_EURUSD", "OTC_GBPUSD", "OTC_USDJPY"]  # Ejemplo de símbolos OTC
+        symbols = ["EURUSD-OTC", "GBPUSD-OTC", "USDJPY-OTC"]  # Ejemplo de símbolos OTC
     else:
         symbols = ["EURUSD", "GBPUSD", "USDJPY"]  # Ejemplo de símbolos normales
     return jsonify({"symbols": symbols})
@@ -70,7 +70,8 @@ def start_bot():
     # Lógica de trading automatizado
     while True:
         # Obtener datos de precios
-        candles = iq.get_candles(symbol, 60, 100, time.time())  # Obtener 100 velas de 1 minuto
+        # Obtener 100 velas de 1 minuto
+        candles = Iq.get_candles(symbol, 60, 100, time.time())
         close_prices = [candle['close'] for candle in candles]
 
         # Calcular indicadores
