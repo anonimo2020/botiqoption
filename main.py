@@ -40,7 +40,8 @@ def run_bot(symbol, amount, martingalas, account):
             socketio.emit("error", {"msg": "No se pudo conectar con IQ Option."})
             return
 
-        if not Iq.get_all_open_time()["binary"].get(symbol, {}).get("open", False):
+        open_times = Iq.get_all_open_time()
+        if symbol not in open_times["binary"] or not open_times["binary"][symbol]["open"]:
             send_telegram(f"❌ El símbolo {symbol} no está disponible en este momento.")
             socketio.emit("error", {"msg": f"El símbolo {symbol} no está disponible."})
             return
@@ -55,7 +56,6 @@ def run_bot(symbol, amount, martingalas, account):
                 socketio.emit("operation", {"symbol": symbol, "amount": amount})
                 send_telegram(f"📈 Operación {i+1}/{martingalas+1} en {symbol} enviada: ${amount:.2f}")
 
-                # Esperar resultado real
                 while True:
                     check, result = Iq.check_win_v4(order_id)
                     if check:
@@ -81,7 +81,6 @@ def start_bot():
         martingalas = int(data.get("martingalas", 2))
         account = data.get("account", "PRACTICE")
 
-        # Verificar si es fin de semana y cambiar a OTC si aplica
         weekend = datetime.today().weekday() in [5, 6]
         otc_pairs = {
             "EURUSD": "EURUSD-OTC",
@@ -107,17 +106,31 @@ def start_bot():
 # --- API para obtener símbolos disponibles ---
 @app.route("/symbols", methods=["GET"])
 def get_symbols():
-    weekend = datetime.today().weekday() in [5, 6]
-    if weekend:
-        symbols = ["EURUSD-OTC", "GBPUSD-OTC", "USDJPY-OTC", "AUDUSD-OTC", "EURJPY-OTC"]
-    else:
-        symbols = ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "EURJPY"]
-    response = make_response(json.dumps({"symbols": symbols}))
-    response.headers["Content-Type"] = "application/json"
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    return response
+    try:
+        Iq = IQ_Option(IQ_EMAIL, IQ_PASSWORD)
+        Iq.connect()
+        time.sleep(3)
+        Iq.change_balance("PRACTICE")
+        open_times = Iq.get_all_open_time()["binary"]
+
+        weekend = datetime.today().weekday() in [5, 6]
+        symbols_otc = ["EURUSD-OTC", "GBPUSD-OTC", "USDJPY-OTC", "AUDUSD-OTC", "EURJPY-OTC"]
+        symbols_std = ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "EURJPY"]
+        valid_symbols = []
+
+        for s in (symbols_otc if weekend else symbols_std):
+            base = s.replace("-OTC", "")
+            if open_times.get(base, {}).get("open", False):
+                valid_symbols.append(s)
+
+        response = make_response(json.dumps({"symbols": valid_symbols}))
+        response.headers["Content-Type"] = "application/json"
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        return response
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # --- Inicio del servidor ---
 if __name__ == "__main__":
     socketio.run(app, host="0.0.0.0", port=10000)
-
