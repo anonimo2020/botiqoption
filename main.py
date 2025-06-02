@@ -17,7 +17,7 @@ except ImportError:
     IQ_Option = None
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
+app.config['SECRET_KEY'] = 'IQOptionBot2024SecureKey'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 CORS(app)
 
