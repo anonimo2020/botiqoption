@@ -9,6 +9,7 @@ import requests
 import os
 import threading
 from iqoptionapi.stable_api import IQ_Option
+import talib
 
 # Inicializar la aplicación Flask y SocketIO
 app = Flask(__name__)
@@ -47,6 +48,38 @@ def get_symbols():
         symbols = ["EURUSD", "GBPUSD", "USDJPY"]
     return jsonify({"symbols": symbols})
 
+def calculate_indicators(candles):
+    try:
+        closes = np.array([float(candle['close']) for candle in candles])
+        highs = np.array([float(candle['max']) for candle in candles])
+        lows = np.array([float(candle['min']) for candle in candles])
+
+        rsi = talib.RSI(closes, timeperiod=14)[-1]
+        macd, macdsignal, _ = talib.MACD(closes, fastperiod=12, slowperiod=26, signalperiod=9)
+        stoch_k, stoch_d = talib.STOCH(highs, lows, closes, fastk_period=14, slowk_period=3, slowd_period=3)
+
+        return {
+            'rsi': rsi,
+            'macd': macd[-1],
+            'signal': macdsignal[-1],
+            'stoch_k': stoch_k[-1],
+            'stoch_d': stoch_d[-1],
+            'price': closes[-1] if len(closes) > 0 else 0
+        }
+    except Exception as e:
+        logger.error(f"Error calculando indicadores: {e}")
+        return None
+
+def get_signal(ind):
+    if not ind:
+        return None
+
+    if ind['rsi'] < 30 and ind['macd'] > ind['signal'] and ind['stoch_k'] < 20 and ind['stoch_d'] < 20:
+        return 'call'
+    elif ind['rsi'] > 70 and ind['macd'] < ind['signal'] and ind['stoch_k'] > 80 and ind['stoch_d'] > 80:
+        return 'put'
+    return None
+
 def run_bot(symbol, initial_amount, martingalas):
     email = os.getenv("IQ_EMAIL")
     password = os.getenv("IQ_PASSWORD")
@@ -60,22 +93,14 @@ def run_bot(symbol, initial_amount, martingalas):
     send_telegram_message(f"🤖 Bot iniciado para *{symbol}* con ${initial_amount}, martingalas: {martingalas}")
 
     current_amount = initial_amount
-    total_invested = 0
     loss_limit = initial_amount * 0.5
 
     while True:
         candles = iq.get_candles(symbol, 60, 100, time.time())
-        close_prices = [candle['close'] for candle in candles]
+        ind = calculate_indicators(candles)
+        direction = get_signal(ind)
 
-        rsi = calculate_rsi(close_prices, 14)
-        macd, signal_line = calculate_macd(close_prices, 12, 26, 9)
-        stochastic_k, stochastic_d = calculate_stochastic(close_prices, 14, 3)
-
-        direction = None
-        if rsi < 30 and macd > signal_line and stochastic_k < 20 and stochastic_d < 20:
-            direction = 'call'
-        elif rsi > 70 and macd < signal_line and stochastic_k > 80 and stochastic_d > 80:
-            direction = 'put'
+        send_telegram_message(f"🔎 RSI: {ind['rsi']:.2f} | MACD: {ind['macd']:.2f} | SIGNAL: {ind['signal']:.2f} | STOCH_K: {ind['stoch_k']:.2f} | STOCH_D: {ind['stoch_d']:.2f}")
 
         if direction:
             result = execute_trade(iq, symbol, current_amount, direction)
@@ -83,21 +108,22 @@ def run_bot(symbol, initial_amount, martingalas):
             send_telegram_message(msg)
 
             logger.info(msg)
-            total_invested += current_amount
-            send_telegram_message(f"💰 Capital actual: ${current_amount:.2f}")
-
             if result['result'] == 'LOSS':
                 current_amount *= 2
-                if martingalas > 0:
-                    martingalas -= 1
-                else:
+                martingalas -= 1
+                if martingalas < 0:
+                    send_telegram_message("🔴 Máxima cantidad de martingalas alcanzada. Bot detenido.")
                     break
             else:
+                send_telegram_message("✅ Operación ganada. Finalizando ciclo.")
                 break
 
             if current_amount < loss_limit:
                 send_telegram_message("🚫 El bot se detuvo por pérdida del 50%.")
                 break
+        else:
+            logger.info("Ninguna señal encontrada. Esperando...")
+            send_telegram_message("⏳ Ninguna señal encontrada. Esperando 60s...")
 
         time.sleep(60)
 
@@ -114,37 +140,20 @@ def start_bot():
     threading.Thread(target=run_bot, args=(symbol, initial_amount, martingalas)).start()
     return jsonify({"message": "Bot iniciado correctamente."}), 200
 
-def calculate_rsi(prices, period):
-    deltas = np.diff(prices)
-    gain = np.where(deltas > 0, deltas, 0)
-    loss = np.where(deltas < 0, -deltas, 0)
-    avg_gain = np.mean(gain[-period:])
-    avg_loss = np.mean(loss[-period:])
-    rs = avg_gain / avg_loss if avg_loss != 0 else 0
-    rsi = 100 - (100 / (1 + rs))
-    return rsi
-
-def calculate_macd(prices, short_period, long_period, signal_period):
-    short_ema = np.mean(prices[-short_period:])
-    long_ema = np.mean(prices[-long_period:])
-    macd = short_ema - long_ema
-    signal_line = np.mean(prices[-signal_period:])
-    return macd, signal_line
-
-def calculate_stochastic(prices, k_period, d_period):
-    lowest_low = np.min(prices[-k_period:])
-    highest_high = np.max(prices[-k_period:])
-    k = 100 * (prices[-1] - lowest_low) / (highest_high - lowest_low) if highest_high != lowest_low else 0
-    d = np.mean([k] * d_period)
-    return k, d
-
 def execute_trade(iq, symbol, amount, direction):
     if direction == 'call':
-        result = iq.buy(symbol, amount, 'call', 1)
+        status, id = iq.buy(amount, symbol, 'call', 1)
     else:
-        result = iq.buy(symbol, amount, 'put', 1)
+        status, id = iq.buy(amount, symbol, 'put', 1)
+
+    if not status:
+        send_telegram_message("❌ Error al enviar operación")
+        return {"result": "ERROR", "profit": 0}
+
+    send_telegram_message(f"📥 Enviando operación {direction.upper()} con ${amount} en {symbol}...")
+
     time.sleep(60)
-    profit = iq.check_win(result['id'])
+    profit = iq.check_win(id)
     return {
         "symbol": symbol,
         "amount": amount,
