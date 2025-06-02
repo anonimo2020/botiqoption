@@ -1,5 +1,5 @@
 flask
-flask-cors
-numpy
+flask-socketio
+eventlet
 requests
-git+https://github.com/Lu-Yi-Hsun/iqoptionapi.git
+iqoptionapi
