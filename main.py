@@ -9,6 +9,7 @@ import requests
 import os
 from iqoptionapi.stable_api import IQ_Option
 
+
 # Inicializar la aplicación Flask y SocketIO
 app = Flask(__name__)
 CORS(app)  # Permitir CORS para todas las rutas
@@ -71,7 +72,7 @@ def start_bot():
     while True:
         # Obtener datos de precios
         # Obtener 100 velas de 1 minuto
-        candles = Iq.get_candles(symbol, 60, 100, time.time())
+        candles = iq.get_candles(symbol, 60, 100, time.time())
         close_prices = [candle['close'] for candle in candles]
 
         # Calcular indicadores
