@@ -7,10 +7,6 @@ services:
     buildCommand: "pip install -r requirements.txt"
     startCommand: "gunicorn main:app --worker-class gthread --threads 4 --bind 0.0.0.0:5000"
     envVars:
-      - key: IQ_EMAIL
-        value: "sebaselwspo@gmail.com"
-      - key: IQ_PASSWORD
-        value: "Octubre2001"
       - key: TELEGRAM_BOT_TOKEN
         value: "7787754995:AAEvM36bO9B4SvGA1cr1VP1j-Rx6on5LrjM"
       - key: TELEGRAM_CHAT_ID
