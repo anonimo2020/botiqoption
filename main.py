@@ -3,9 +3,19 @@ from flask_socketio import SocketIO
 from flask_cors import CORS
 import logging, datetime, time, threading, os, requests, numpy as np
 from iqoptionapi.stable_api import IQ_Option
+from flask_session import Session
 
 app = Flask(__name__)
 app.secret_key = 'super_secret_key'
+
+# Configuración de sesión segura
+app.config.update(
+    SESSION_TYPE='filesystem',
+    SESSION_COOKIE_SAMESITE='None',
+    SESSION_COOKIE_SECURE=True
+)
+Session(app)
+
 CORS(app, supports_credentials=True)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
