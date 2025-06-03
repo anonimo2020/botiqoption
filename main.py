@@ -16,6 +16,7 @@ app.config['SESSION_FILE_DIR'] = '/tmp/session_data'
 app.config['SESSION_COOKIE_NAME'] = 'session'
 app.config['SESSION_COOKIE_SAMESITE'] = 'None'
 app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_HTTPONLY'] = True
 Session(app)
 
 CORS(app, supports_credentials=True)
@@ -48,6 +49,15 @@ def login():
     if iq.check_connect():
         user_sessions[email] = iq
         session['user_email'] = email
+
+        profile = iq.get_profile_ansyc()
+        balance = iq.get_balance()
+        account_type = iq.get_balance_mode()
+        send_telegram_message(f"✅ Inicio de sesión:
+👤 Usuario: {profile.get('name', 'Desconocido')}
+📧 Email: {email}
+💰 Balance: ${balance:.2f} ({account_type})")
+
         return jsonify({"success": True, "message": "Conectado a IQ Option"}), 200
     else:
         return jsonify({"success": False, "message": "Credenciales incorrectas"}), 401
@@ -122,8 +132,13 @@ def run_bot(iq, symbol, initial_amount, martingalas, email):
             send_telegram_message("⚠️ No se pudieron calcular los indicadores.")
 
         if direction:
+            balance = iq.get_balance()
+            if current_amount > balance:
+                send_telegram_message(f"🚫 Fondos insuficientes para operar ${current_amount:.2f}. Balance actual: ${balance:.2f}. Bot detenido.")
+                break
+
             result = execute_trade(iq, symbol, current_amount, direction)
-            send_telegram_message(f"📊 {direction.upper()} en {symbol} → *{result['result']}* | Ganancia: ${result['profit']:.2f}")
+            send_telegram_message(f"📊 Operación: {direction.upper()} en {symbol} → *{result['result']}* | Monto: ${current_amount:.2f} | Ganancia: ${result['profit']:.2f}")
 
             if result['result'] == 'LOSS':
                 current_amount *= 2
@@ -144,7 +159,9 @@ def run_bot(iq, symbol, initial_amount, martingalas, email):
 def execute_trade(iq, symbol, amount, direction):
     status, id = iq.buy(amount, symbol, direction, 1)
     if not status:
+        send_telegram_message("❌ Error al enviar la operación a IQ Option.")
         return {"result": "ERROR", "profit": 0}
+
     time.sleep(60)
     profit = iq.check_win(id)
     return {"symbol": symbol, "amount": amount, "result": 'WIN' if profit > 0 else 'LOSS', "profit": profit}
