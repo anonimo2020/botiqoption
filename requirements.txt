@@ -1,11 +1,12 @@
 Flask==2.3.3
 Flask-SocketIO==5.3.6
 Flask-Cors==4.0.0
-pip install Flask-Session
+Flask-Session==0.4.0
 python-telegram-bot==13.7
 python-socketio==5.8.0
 eventlet==0.33.3
 gunicorn==21.2.0
 requests==2.31.0
-numpy==1.24.0  # Asegúrate de incluir esta línea
+numpy==1.24.0
 iqoptionapi @ git+https://github.com/Lu-Yi-Hsun/iqoptionapi.git
+
