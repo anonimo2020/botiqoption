@@ -8,13 +8,14 @@ from flask_session import Session
 app = Flask(__name__)
 app.secret_key = 'super_secret_key'
 
-# Configuración de sesión segura y compatibilidad con Flask >=2.3
-app.config.update(
-    SESSION_TYPE='filesystem',
-    SESSION_COOKIE_NAME='session',
-    SESSION_COOKIE_SAMESITE='None',
-    SESSION_COOKIE_SECURE=True
-)
+# Configuración de sesión segura y compatible con Flask >=2.3
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['SESSION_PERMANENT'] = False
+app.config['SESSION_USE_SIGNER'] = True
+app.config['SESSION_FILE_DIR'] = '/tmp/session_data'
+app.config['SESSION_COOKIE_NAME'] = 'session'
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+app.config['SESSION_COOKIE_SECURE'] = True
 Session(app)
 
 CORS(app, supports_credentials=True)
