@@ -12,10 +12,8 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Almacenar sesiones IQ Option por usuario
 user_sessions = {}
 
-# Telegram config
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
