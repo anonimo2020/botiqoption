@@ -631,4 +631,4 @@ def test():
 if __name__ == '__main__':
     logger.info("🚀 Iniciando servidor de trading bot...")
     send_telegram_message("🚀 *SERVIDOR INICIADO*\n⏰ " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-    socketio.run(app, debug=True, host='0.0.0.0', port=5000) adapta este codigo para que funcione con los datos que ya tienes, no te robes lineas de codigos necesarias
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000)
