@@ -22,6 +22,8 @@ app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 Session(app)
 
+os.makedirs('/tmp/session_data', exist_ok=True)
+
 CORS(app, supports_credentials=True)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 
@@ -48,13 +50,18 @@ def login():
     email = data.get('email')
     password = data.get('password')
 
+    logger.info(f"🔐 Iniciando sesión para {email}")
+
     iq = IQ_Option(email, password)
     iq.connect()
     if iq.check_connect():
+        logger.info("✅ Conectado a IQ Option")
         user_sessions[email] = iq
         session['user_email'] = email
 
-        profile = iq.get_profile_ansyc()
+        profile = iq.get_profile()
+        logger.info(f"👤 Perfil obtenido: {profile}")
+
         balance = iq.get_balance()
         account_type = iq.get_balance_mode()
         send_telegram_message(f"""✅ Inicio de sesión:
@@ -64,6 +71,7 @@ def login():
 
         return jsonify({"success": True, "message": "Conectado a IQ Option"}), 200
     else:
+        logger.warning("❌ Falló la conexión a IQ Option")
         return jsonify({"success": False, "message": "Credenciales incorrectas"}), 401
 
 @app.route('/symbols', methods=['GET'])
