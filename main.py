@@ -1,57 +1,56 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, session
 from flask_socketio import SocketIO
 from flask_cors import CORS
-import logging
-import datetime
-import time
-import numpy as np
-import requests
-import os
-import threading
+import logging, datetime, time, threading, os, requests, numpy as np
 from iqoptionapi.stable_api import IQ_Option
 
-# Inicializar la aplicación Flask y SocketIO
 app = Flask(__name__)
-CORS(app)
+app.secret_key = 'super_secret_key'
+CORS(app, supports_credentials=True)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Configurar logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configuración de Telegram
+# Almacenar sesiones IQ Option por usuario
+user_sessions = {}
+
+# Telegram config
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown"
-    }
+    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "Markdown"}
     try:
         requests.post(url, json=payload)
     except Exception as e:
         logger.error(f"Error enviando mensaje a Telegram: {e}")
 
-def is_weekend():
-    today = datetime.datetime.now().weekday()
-    return today == 5 or today == 6
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.json
+    email = data.get('email')
+    password = data.get('password')
+
+    iq = IQ_Option(email, password)
+    iq.connect()
+    if iq.check_connect():
+        user_sessions[email] = iq
+        session['user_email'] = email
+        return jsonify({"success": True, "message": "Conectado a IQ Option"}), 200
+    else:
+        return jsonify({"success": False, "message": "Credenciales incorrectas"}), 401
 
 @app.route('/symbols', methods=['GET'])
 def get_symbols():
-    if is_weekend():
-        symbols = ["EURUSD-OTC", "GBPUSD-OTC", "USDJPY-OTC"]
-    else:
-        symbols = ["EURUSD", "GBPUSD", "USDJPY"]
-    return jsonify({"symbols": symbols})
+    return jsonify({"symbols": ["EURUSD", "GBPUSD", "USDJPY", "EURUSD-OTC", "GBPUSD-OTC", "USDJPY-OTC"]})
 
 def calculate_indicators(candles):
     try:
-        closes = np.array([float(candle['close']) for candle in candles])
-        highs = np.array([float(candle['max']) for candle in candles])
-        lows = np.array([float(candle['min']) for candle in candles])
+        closes = np.array([float(c['close']) for c in candles])
+        highs = np.array([float(c['max']) for c in candles])
+        lows = np.array([float(c['min']) for c in candles])
 
         delta = np.diff(closes)
         gain = np.where(delta > 0, delta, 0)
@@ -60,53 +59,45 @@ def calculate_indicators(candles):
         avg_loss = np.mean(loss[-14:])
         rs = avg_gain / avg_loss if avg_loss != 0 else 0
         rsi = 100 - (100 / (1 + rs))
-
-        short_ema = np.mean(closes[-12:])
-        long_ema = np.mean(closes[-26:])
-        macd = short_ema - long_ema
+        macd = np.mean(closes[-12:]) - np.mean(closes[-26:])
         signal = np.mean(closes[-9:])
+        stoch_k = 100 * ((closes[-1] - np.min(lows[-14:])) / (np.max(highs[-14:]) - np.min(lows[-14:]))) if np.max(highs[-14:]) != np.min(lows[-14:]) else 0
+        stoch_d = np.mean([stoch_k]*3)
 
-        lowest_low = np.min(lows[-14:])
-        highest_high = np.max(highs[-14:])
-        stoch_k = 100 * ((closes[-1] - lowest_low) / (highest_high - lowest_low)) if highest_high != lowest_low else 0
-        stoch_d = np.mean([stoch_k] * 3)
-
-        return {
-            'rsi': rsi,
-            'macd': macd,
-            'signal': signal,
-            'stoch_k': stoch_k,
-            'stoch_d': stoch_d,
-            'price': closes[-1] if len(closes) > 0 else 0
-        }
+        return {"rsi": rsi, "macd": macd, "signal": signal, "stoch_k": stoch_k, "stoch_d": stoch_d, "price": closes[-1]}
     except Exception as e:
         logger.error(f"Error calculando indicadores: {e}")
         return None
 
 def get_signal(ind):
-    if not ind:
-        return None
-
-    if ind['rsi'] < 35 or (ind['macd'] > ind['signal'] and ind['stoch_k'] < 25):
-        return 'call'
-    elif ind['rsi'] > 65 or (ind['macd'] < ind['signal'] and ind['stoch_k'] > 75):
-        return 'put'
+    if not ind: return None
+    if ind['rsi'] < 35 or (ind['macd'] > ind['signal'] and ind['stoch_k'] < 25): return 'call'
+    if ind['rsi'] > 65 or (ind['macd'] < ind['signal'] and ind['stoch_k'] > 75): return 'put'
     return None
 
-def run_bot(symbol, initial_amount, martingalas, account_type):
-    email = os.getenv("IQ_EMAIL")
-    password = os.getenv("IQ_PASSWORD")
-    iq = IQ_Option(email, password)
-    iq.connect()
+@app.route('/start_bot', methods=['POST'])
+def start_bot():
+    if 'user_email' not in session:
+        return jsonify({"error": "Usuario no autenticado"}), 403
 
-    if not iq.check_connect():
-        send_telegram_message("❌ No se pudo conectar a IQ Option.")
-        return
+    email = session['user_email']
+    iq = user_sessions.get(email)
+
+    if not iq or not iq.check_connect():
+        return jsonify({"error": "Sesión expirada o inválida"}), 403
+
+    data = request.json
+    symbol = data.get('symbol')
+    amount = float(data.get('amount', 1))
+    martingalas = int(data.get('martingalas', 0))
+    account_type = data.get('account_type', 'PRACTICE')
 
     iq.change_balance(account_type.upper())
-    balance = iq.get_balance()
-    send_telegram_message(f"🤖 Bot iniciado para *{symbol}* con ${initial_amount}, martingalas: {martingalas}\n💼 Tipo de cuenta: *{account_type.upper()}* | Saldo: ${balance:.2f}")
+    threading.Thread(target=run_bot, args=(iq, symbol, amount, martingalas, email)).start()
 
+    return jsonify({"message": "Bot iniciado correctamente."}), 200
+
+def run_bot(iq, symbol, initial_amount, martingalas, email):
     current_amount = initial_amount
     loss_limit = initial_amount * 0.5
 
@@ -115,67 +106,38 @@ def run_bot(symbol, initial_amount, martingalas, account_type):
         ind = calculate_indicators(candles)
         direction = get_signal(ind)
 
-        send_telegram_message(f"🔎 RSI: {ind['rsi']:.2f} | MACD: {ind['macd']:.2f} | SIGNAL: {ind['signal']:.2f} | STOCH_K: {ind['stoch_k']:.2f} | STOCH_D: {ind['stoch_d']:.2f}")
+        if ind:
+            send_telegram_message(f"🔎 RSI: {ind['rsi']:.2f} | MACD: {ind['macd']:.2f} | STOCH_K: {ind['stoch_k']:.2f}")
+        else:
+            send_telegram_message("⚠️ No se pudieron calcular los indicadores.")
 
         if direction:
             result = execute_trade(iq, symbol, current_amount, direction)
-            msg = f"📊 Operación: *{direction.upper()}* en *{symbol}* con ${current_amount} → *{result['result']}*\nGanancia: ${result['profit']:.2f}"
-            send_telegram_message(msg)
+            send_telegram_message(f"📊 {direction.upper()} en {symbol} → *{result['result']}* | Ganancia: ${result['profit']:.2f}")
 
-            logger.info(msg)
             if result['result'] == 'LOSS':
                 current_amount *= 2
                 martingalas -= 1
                 if martingalas < 0:
-                    send_telegram_message("🔴 Máxima cantidad de martingalas alcanzada. Bot detenido.")
+                    send_telegram_message("🔴 Martingalas agotadas. Bot detenido.")
                     break
             else:
-                send_telegram_message("✅ Operación ganada. Finalizando ciclo.")
                 break
 
             if current_amount < loss_limit:
-                send_telegram_message("🚫 El bot se detuvo por pérdida del 50%.")
+                send_telegram_message("🚫 Pérdida del 50%. Bot detenido.")
                 break
         else:
-            logger.info("Ninguna señal encontrada. Esperando...")
-            send_telegram_message("⏳ Ninguna señal encontrada. Esperando 60s...")
-
+            send_telegram_message("⏳ Sin señal. Esperando 60s...")
         time.sleep(60)
 
-@app.route('/start_bot', methods=['POST'])
-def start_bot():
-    data = request.json
-    symbol = data.get('symbol')
-    initial_amount = data.get('amount', 1)
-    martingalas = data.get('martingalas', 0)
-    account_type = data.get('account_type', 'PRACTICE')
-
-    if not symbol:
-        return jsonify({"error": "Símbolo no válido"}), 400
-
-    threading.Thread(target=run_bot, args=(symbol, initial_amount, martingalas, account_type)).start()
-    return jsonify({"message": "Bot iniciado correctamente."}), 200
-
 def execute_trade(iq, symbol, amount, direction):
-    if direction == 'call':
-        status, id = iq.buy(amount, symbol, 'call', 1)
-    else:
-        status, id = iq.buy(amount, symbol, 'put', 1)
-
+    status, id = iq.buy(amount, symbol, direction, 1)
     if not status:
-        send_telegram_message("❌ Error al enviar operación")
         return {"result": "ERROR", "profit": 0}
-
-    send_telegram_message(f"📥 Enviando operación {direction.upper()} con ${amount} en {symbol}...")
-
     time.sleep(60)
     profit = iq.check_win(id)
-    return {
-        "symbol": symbol,
-        "amount": amount,
-        "result": 'WIN' if profit > 0 else 'LOSS',
-        "profit": profit
-    }
+    return {"symbol": symbol, "amount": amount, "result": 'WIN' if profit > 0 else 'LOSS', "profit": profit}
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, host='0.0.0.0', port=5000)
