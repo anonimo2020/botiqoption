@@ -8,9 +8,10 @@ from flask_session import Session
 app = Flask(__name__)
 app.secret_key = 'super_secret_key'
 
-# Configuración de sesión segura
+# Configuración de sesión segura y compatibilidad con Flask >=2.3
 app.config.update(
     SESSION_TYPE='filesystem',
+    SESSION_COOKIE_NAME='session',
     SESSION_COOKIE_SAMESITE='None',
     SESSION_COOKIE_SECURE=True
 )
