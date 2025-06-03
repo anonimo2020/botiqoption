@@ -5,6 +5,9 @@ import logging, datetime, time, threading, os, requests, numpy as np
 from iqoptionapi.stable_api import IQ_Option
 from flask_session import Session
 
+import eventlet
+eventlet.monkey_patch()
+
 app = Flask(__name__)
 app.secret_key = 'super_secret_key'
 
@@ -20,21 +23,22 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 Session(app)
 
 CORS(app, supports_credentials=True)
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 user_sessions = {}
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+TELEGRAM_TOKEN = "7787754995:AAEvM36bO9B4SvGA1cr1VP1j-Rx6on5LrjM"
+TELEGRAM_CHAT_ID = "7009100334"
 
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "Markdown"}
     try:
-        requests.post(url, json=payload)
+        response = requests.post(url, json=payload)
+        logger.info(f"Telegram response: {response.status_code} - {response.text}")
     except Exception as e:
         logger.error(f"Error enviando mensaje a Telegram: {e}")
 
@@ -112,16 +116,23 @@ def start_bot():
     martingalas = int(data.get('martingalas', 0))
     account_type = data.get('account_type', 'PRACTICE')
 
+    if amount <= 0:
+        return jsonify({"error": "El monto debe ser mayor que 0"}), 400
+
+    balance = iq.get_balance()
+    if amount > balance:
+        return jsonify({"error": f"Fondos insuficientes. Balance: ${balance:.2f}"}), 400
+
     iq.change_balance(account_type.upper())
-    threading.Thread(target=run_bot, args=(iq, symbol, amount, martingalas, email)).start()
+    socketio.start_background_task(run_bot, iq, symbol, amount, martingalas, email)
 
     return jsonify({"message": "Bot iniciado correctamente."}), 200
 
 def run_bot(iq, symbol, initial_amount, martingalas, email):
-    current_amount = initial_amount
-    loss_limit = initial_amount * 0.5
+    try:
+        current_amount = initial_amount
+        loss_limit = initial_amount * 0.5
 
-    while True:
         candles = iq.get_candles(symbol, 60, 100, time.time())
         ind = calculate_indicators(candles)
         direction = get_signal(ind)
@@ -135,7 +146,7 @@ def run_bot(iq, symbol, initial_amount, martingalas, email):
             balance = iq.get_balance()
             if current_amount > balance:
                 send_telegram_message(f"🚫 Fondos insuficientes para operar ${current_amount:.2f}. Balance actual: ${balance:.2f}. Bot detenido.")
-                break
+                return
 
             result = execute_trade(iq, symbol, current_amount, direction)
             send_telegram_message(f"📊 Operación: {direction.upper()} en {symbol} → *{result['result']}* | Monto: ${current_amount:.2f} | Ganancia: ${result['profit']:.2f}")
@@ -145,26 +156,34 @@ def run_bot(iq, symbol, initial_amount, martingalas, email):
                 martingalas -= 1
                 if martingalas < 0:
                     send_telegram_message("🔴 Martingalas agotadas. Bot detenido.")
-                    break
+                    return
             else:
-                break
+                return
 
             if current_amount < loss_limit:
                 send_telegram_message("🚫 Pérdida del 50%. Bot detenido.")
-                break
+                return
         else:
-            send_telegram_message("⏳ Sin señal. Esperando 60s...")
-        time.sleep(60)
+            send_telegram_message("⏳ Sin señal. Finalizando ejecución de prueba.")
+
+    except Exception as e:
+        logger.error(f"Error en run_bot: {e}")
+        send_telegram_message(f"❌ Error en run_bot: {e}")
 
 def execute_trade(iq, symbol, amount, direction):
-    status, id = iq.buy(amount, symbol, direction, 1)
-    if not status:
-        send_telegram_message("❌ Error al enviar la operación a IQ Option.")
-        return {"result": "ERROR", "profit": 0}
+    try:
+        status, id = iq.buy(amount, symbol, direction, 1)
+        if not status:
+            send_telegram_message("❌ Error al enviar la operación a IQ Option.")
+            return {"result": "ERROR", "profit": 0}
 
-    time.sleep(60)
-    profit = iq.check_win(id)
-    return {"symbol": symbol, "amount": amount, "result": 'WIN' if profit > 0 else 'LOSS', "profit": profit}
+        time.sleep(60)
+        profit = iq.check_win(id)
+        return {"symbol": symbol, "amount": amount, "result": 'WIN' if profit > 0 else 'LOSS', "profit": profit}
+    except Exception as e:
+        logger.error(f"Error en execute_trade: {e}")
+        send_telegram_message(f"❌ Error en execute_trade: {e}")
+        return {"result": "ERROR", "profit": 0}
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, host='0.0.0.0', port=5000)
