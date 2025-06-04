@@ -75,6 +75,7 @@ def send_telegram_message(message):
         return
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    logger.info(f"🌐 Preparing Telegram API request to URL: '{url}'")
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
