@@ -84,7 +84,7 @@ def send_telegram_message(message):
     }
 
     try:
-        response = requests.post(url, json=payload, timeout=10)
+        response = requests.post(url, json=payload, timeout=15)
         response.raise_for_status() # Lanza una excepción para errores HTTP (4xx o 5xx)
         logger.info(f"✅ Mensaje enviado a Telegram: {message[:50]}...")
     except requests.exceptions.Timeout:
