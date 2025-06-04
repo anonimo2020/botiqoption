@@ -6,20 +6,12 @@ services:
     env: python
     plan: free
     buildCommand: "pip install -r requirements.txt"
-    # Importante:
-    # 1. 'app:app' asume que tu instancia de Flask 'app' está en 'app.py'
-    # 2. '--worker-class eventlet' es CRUCIAL para Flask-SocketIO con eventlet
-    # 3. '-w 1' es típicamente recomendado para workers de eventlet para evitar problemas con el estado compartido
-    # 4. '0.0.0.0:$PORT' usa el puerto asignado por Render
     startCommand: "gunicorn app:app --worker-class eventlet -w 1 --bind 0.0.0.0:$PORT"
     envVars:
-      # --- Configura estas variables de entorno en Render ---
       # TOKEN de tu bot de Telegram
       - key: TELEGRAM_BOT_TOKEN
-        value: "7787754995:AAEvM36bO9B4SvGA1cr1VP1j-Rx6on5LrjM"
-      # ID del chat de Telegram al que el bot enviará mensajes
       - key: TELEGRAM_CHAT_ID
-        value: "7009100334"
       # CLAVE SECRETA para las sesiones de Flask (¡GENERA UNA CLAVE FUERTE Y ÚNICA!)
       - key: FLASK_SECRET_KEY
-        value: "TU_CLAVE_SECRETA_ALEATORIA_Y_MUY_LARGA_AQUI" # ¡CAMBIA ESTO!
+        
+        
