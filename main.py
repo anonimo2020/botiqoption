@@ -60,8 +60,8 @@ user_sessions = {}  # Para rastrear conexiones de IQ Option por email
 active_bots = {}    # Para rastrear el estado activo/inactivo de bots por usuario
 
 # --- Configuración de Telegram (desde variables de entorno) ---
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+TELEGRAM_BOT_TOKEN = ("7787754995:AAEvM36bO9B4SvGA1cr1VP1j-Rx6on5LrjM")
+TELEGRAM_CHAT_ID = ("7009100334")
 
 if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
     logger.error("❌ ERROR: TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID no están configuradas como variables de entorno.")
