@@ -16,6 +16,7 @@ eventlet.monkey_patch()
 
 # --- Configuración de la aplicación Flask ---
 app = Flask(__name__)
+CORS(app, origins=["https://iqoptionbot.ct.ws"])
 
 # Configuración de SECRET_KEY desde variables de entorno
 app.secret_key = os.environ.get('FLASK_SECRET_KEY')
@@ -40,6 +41,9 @@ Session(app)
 os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
 
 # Configuración de CORS para el frontend (asegúrate de que origins sean correctos)
+# En producción, reemplaza 'http://localhost:3000' y 'https://yourdomain.com'
+# con el dominio real de tu frontend, por ejemplo, 'https://iqoptionbot.ct.ws' si tu frontend está ahí.
+# Para pruebas o si el frontend está en un subdominio de Render, '*' puede ser necesario, pero es menos seguro.
 CORS(app, supports_credentials=True, origins=['http://localhost:3000', 'https://iqoptionbot.ct.ws']) # Ajustado para tu dominio
 
 # Inicialización de SocketIO
@@ -53,18 +57,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # --- Variables Globales ---
-user_sessions = {}   # Para rastrear conexiones de IQ Option por email
-active_bots = {}     # Para rastrear el estado activo/inactivo de bots por usuario
+user_sessions = {}  # Para rastrear conexiones de IQ Option por email
+active_bots = {}    # Para rastrear el estado activo/inactivo de bots por usuario
 
 # --- Configuración de Telegram (desde variables de entorno) ---
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-
-# IMPORTANT: Ensure tokens are stripped of any leading/trailing whitespace
-if TELEGRAM_BOT_TOKEN:
-    TELEGRAM_BOT_TOKEN = TELEGRAM_BOT_TOKEN.strip()
-if TELEGRAM_CHAT_ID:
-    TELEGRAM_CHAT_ID = TELEGRAM_CHAT_ID.strip()
+TELEGRAM_BOT_TOKEN = ("7787754995:AAEvM36bO9B4SvGA1cr1VP1j-Rx6on5LrjM")
+TELEGRAM_CHAT_ID = ("7009100334")
 
 if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
     logger.error("❌ ERROR: TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID no están configuradas como variables de entorno.")
@@ -77,8 +75,7 @@ def send_telegram_message(message):
         logger.warning("⚠️ No se puede enviar mensaje a Telegram: Token o Chat ID no configurados.")
         return
 
-    # CORRECCIÓN IMPORTANTE AQUÍ: api.telegram.org
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    url = f"https://www.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     logger.info(f"🌐 Preparing Telegram API request to URL: '{url}'")
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
@@ -88,7 +85,7 @@ def send_telegram_message(message):
     }
 
     try:
-        response = requests.post(url, json=payload, timeout=10)
+        response = requests.post(url, json=payload, timeout=15)
         response.raise_for_status() # Lanza una excepción para errores HTTP (4xx o 5xx)
         logger.info(f"✅ Mensaje enviado a Telegram: {message[:50]}...")
     except requests.exceptions.Timeout:
@@ -98,59 +95,12 @@ def send_telegram_message(message):
     except Exception as e:
         logger.error(f"❌ Error inesperado al enviar a Telegram: {e}")
 
-# --- Network Diagnostic Function ---
-def diagnose_network():
-    logger.info("⚡ Ejecutando diagnóstico de red...")
-
-    # Test Google
-    try:
-        logger.info("🌐 Intentando GET a: https://www.google.com")
-        response = requests.get("https://www.google.com", timeout=10)
-        if response.status_code == 200:
-            logger.info("✅ Conectividad a Google.com: EXITOSA")
-        else:
-            logger.warning(f"⚠️ Conectividad a Google.com: FALLÓ con status {response.status_code}")
-    except requests.exceptions.RequestException as e:
-        logger.error(f"❌ Error de red al intentar conectar a Google.com: {e}")
-
-    # Test Telegram API
-    try:
-        logger.info("🌐 Intentando GET a: https://api.telegram.org")
-        response = requests.get("https://api.telegram.org", timeout=10)
-        if response.status_code == 200:
-            logger.info("✅ Conectividad a api.telegram.org: EXITOSA")
-        else:
-            logger.warning(f"⚠️ Conectividad a api.telegram.org: FALLÓ con status {response.status_code}")
-    except requests.exceptions.RequestException as e:
-        logger.error(f"❌ Error de red al intentar conectar a api.telegram.org: {e}")
-        
-    # Test IQ Option (simplified, just the domain)
-    try:
-        logger.info("🌐 Intentando GET a: https://iqoption.com")
-        response = requests.get("https://iqoption.com", timeout=10)
-        if response.status_code == 200:
-            logger.info("✅ Conectividad a iqoption.com: EXITOSA")
-        else:
-            logger.warning(f"⚠️ Conectividad a iqoption.com: FALLÓ con status {response.status_code}")
-    except requests.exceptions.RequestException as e:
-        logger.error(f"❌ Error de red al intentar conectar a iqoption.com: {e}")
-
-    logger.info("✅ Diagnóstico de red completado.")
-# --- Fin de la función de diagnóstico ---
-
-
 # --- Endpoints HTTP REST ---
 
 @app.route('/health', methods=['GET'])
 def health_check():
     """Endpoint de salud para verificar que el servidor funciona"""
-    return jsonify({
-        "status": "healthy",
-        "timestamp": datetime.datetime.now().isoformat(),
-        "active_iq_sessions": len(user_sessions),
-        "active_running_bots": len([k for k, v in active_bots.items() if v]),
-        "telegram_configured": bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)
-    }), 200
+    return jsonify({"status": "healthy", "timestamp": datetime.datetime.now().isoformat()}), 200
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -183,13 +133,7 @@ def login():
         iq = IQ_Option(email, password)
 
         logger.info(f"Conectando a IQ Option para {email}...")
-        
-        # --- NUEVO: Manejo de errores para iq.connect() ---
-        try:
-            connect_result = iq.connect()
-        except Exception as e:
-            logger.error(f"❌ Excepción al intentar conectar a IQ Option para {email}: {e}")
-            return jsonify({"success": False, "message": f"Error de conexión con IQ Option: {e}"}), 500
+        connect_result = iq.connect()
 
         if not connect_result:
             logger.warning(f"❌ Falló la conexión inicial a IQ Option para {email}.")
@@ -723,97 +667,164 @@ def run_bot(iq_api_instance, symbol, initial_amount, martingalas_limit, email, s
                 time.sleep(90) # Espera 90 segundos antes de la próxima iteración
 
             else: # Sin señal clara o bot detenido externamente
-                logger.info(f"🟡 Sin señal clara para {symbol}. Reintentando análisis en 30s.")
+                if not active_bots.get(email, False):
+                    break # El bot ha sido detenido externamente
+                logger.info(f"Sin señal clara para {symbol}. Esperando {60} segundos.")
                 socketio.emit('bot_status', {'message': f"Sin señal clara para {symbol}. Esperando...", 'status': 'waiting_signal'}, room=sid)
-                time.sleep(30) # Espera un tiempo más corto si no hay señal
+                time.sleep(60) # Espera un poco más si no hay señal para no spammear.
 
         except Exception as e:
-            logger.error(f"❌ Error en el bucle principal del bot para {email}: {e}", exc_info=True)
-            send_telegram_message(f"⚠️ *ERROR CRÍTICO EN BOT*\n👤 Usuario: `{email}`\n❌ Error: {e}\n🚫 *Bot detenido*")
-            socketio.emit('bot_status', {'message': f"Error crítico en el bot: {e}. Bot detenido.", 'status': 'error'}, room=sid)
-            active_bots[email] = False # Detener el bot en caso de error crítico
-            break # Salir del bucle del bot
+            logger.error(f"❌ Error en el ciclo principal del bot para {email}: {str(e)}", exc_info=True)
+            send_telegram_message(f"⚠️ *ERROR EN BOT*\n👤 Usuario: `{email}`\n❌ Error: {str(e)}")
+            socketio.emit('bot_status', {'message': f"Un error inesperado ocurrió: {str(e)}. El bot podría detenerse.", 'status': 'error'}, room=sid)
+            time.sleep(30) # Pausa para evitar bucles de error rápidos
+            # Opcional: Si el error es crítico, considera detener el bot.
+            # active_bots[email] = False
+            # break
 
-    logger.info(f"🛑 Bot detenido para {email} - {symbol} (SID: {sid}).")
-    socketio.emit('bot_status', {'message': "Bot detenido.", 'status': 'stopped'}, room=sid)
-    send_telegram_message(f"✅ *BOT DETENIDO*\n👤 Usuario: `{email}`\n📊 *Total operaciones:* {total_trades}\n⏰ *Fin:* {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    # Fuera del bucle while: el bot ha finalizado su ejecución
+    active_bots[email] = False # Asegurarse de que la bandera esté en False
+    final_message = f"""🏁 *BOT FINALIZADO*
 
+👤 *Usuario:* `{email}`
+📈 *Símbolo:* {symbol}
+📊 *Total operaciones:* {total_trades}
+⏰ *Finalizado:* {datetime.datetime.now().strftime('%H:%M:%S')}
 
-# --- Funciones Auxiliares de Trading (PLACEHOLDERS, necesitas implementarlas) ---
+🤖 *Gracias por usar el bot*"""
+
+    send_telegram_message(final_message)
+    socketio.emit('bot_status', {'message': "Bot detenido.", 'status': 'stopped', 'total_trades': total_trades}, room=sid)
+    logger.info(f"🏁 Bot finalizado para {email}.")
+
 def execute_trade(iq_api_instance, symbol, amount, direction, email, sid):
     """
-    Simula o ejecuta una operación real.
-    Devuelve un diccionario con el resultado: {'result': 'WIN'|'LOSS'|'DRAW'|'ERROR', 'amount': X, 'profit': Y, 'message': '...'}.
+    Ejecuta una operación en IQ Option y espera el resultado.
+    Devuelve un diccionario con el resultado de la operación.
     """
-    logger.info(f"Ejecutando operación simulada: {direction.upper()} {symbol} ${amount}")
-    # --- IMPLEMENTACIÓN REAL AQUÍ ---
-    # Esto es solo un ejemplo de cómo manejar el resultado.
-    # Necesitas usar iq_api_instance.buy() o similar.
+    try:
+        logger.info(f"🎯 Ejecutando {direction.upper()} en {symbol} por ${amount:.2f}")
 
-    # Ejemplo de operación binaria
-    # Se recomienda usar opciones binarias en la API de IQ Option
-    # Ejemplo de compra de opciones binarias:
-    # check, order_id = iq_api_instance.buy(amount, symbol, direction, 1) # 1 minuto de expiración
-    # if check:
-    #     logger.info(f"Operación {order_id} iniciada. Esperando resultado...")
-    #     # Esperar el resultado de la operación
-    #     for _ in range(60): # Esperar hasta 60 segundos por el resultado
-    #         if iq_api_instance.check_win_v3(order_id): # O iq_api_instance.check_win()
-    #             result_data = iq_api_instance.check_win_v3(order_id)
-    #             if result_data == "win":
-    #                 profit = amount * iq_api_instance.get_all_profit()[symbol] # Aproximado
-    #                 return {'result': 'WIN', 'amount': amount, 'profit': profit, 'message': 'Ganada'}
-    #             elif result_data == "lose":
-    #                 return {'result': 'LOSS', 'amount': amount, 'profit': -amount, 'message': 'Perdida'}
-    #             elif result_data == "equal":
-    #                 return {'result': 'DRAW', 'amount': amount, 'profit': 0, 'message': 'Empate'}
-    #             break # Salir del bucle una vez que el resultado está disponible
-    #         time.sleep(1)
-    #     logger.warning(f"Timeout esperando resultado de operación {order_id}. Considerado ERROR.")
-    #     return {'result': 'ERROR', 'amount': amount, 'profit': 0, 'message': 'Tiempo de espera agotado para el resultado.'}
-    # else:
-    #     logger.error(f"Error al iniciar operación: {iq_api_instance.buy(amount, symbol, direction, 1)}")
-    #     return {'result': 'ERROR', 'amount': amount, 'profit': 0, 'message': 'Fallo al iniciar la operación de compra.'}
+        # Abrir posición con un tiempo de expiración de 1 minuto (60 segundos)
+        # El 1 en iq.buy es el tiempo de expiración en minutos.
+        status, order_id = iq_api_instance.buy(amount, symbol, direction, 1) # Operación de 1 minuto
 
-    # *** MOCKUP DE RESULTADO PARA PRUEBAS (DESCOMENTA PARA PROBAR SIN CONEXIÓN REAL) ***
-    # from random import choice
-    # results = ['WIN', 'LOSS', 'DRAW']
-    # random_result = choice(results)
-    # if random_result == 'WIN':
-    #     profit = amount * 0.82 # Ejemplo de 82% de ganancia
-    # elif random_result == 'LOSS':
-    #     profit = -amount
-    # else:
-    #     profit = 0
-    # time.sleep(5) # Simula el tiempo de la operación
-    # return {'result': random_result, 'amount': amount, 'profit': profit, 'message': f'Resultado simulado: {random_result}'}
-    # *** FIN MOCKUP ***
+        if not status or not order_id:
+            error_msg = f"❌ *ERROR AL ABRIR POSICIÓN*\n👤 Usuario: `{email}`\n📈 Símbolo: {symbol}\n💰 Monto: ${amount:.2f}\n⚠️ Detalles: {status}"
+            send_telegram_message(error_msg)
+            socketio.emit('trade_result', {'symbol': symbol, 'amount': amount, 'result': 'ERROR', 'profit': 0, 'message': 'Error al abrir posición.'}, room=sid)
+            return {"symbol": symbol, "amount": amount, "result": "ERROR", "profit": 0, "message": str(status)}
 
-    # Placeholder si el mockup está comentado y no hay implementación real
-    logger.error("La función execute_trade necesita una implementación real para comprar en IQ Option.")
-    return {'result': 'ERROR', 'amount': amount, 'profit': 0, 'message': 'Función execute_trade no implementada.'}
+        # Notificar apertura al frontend y Telegram
+        open_message = f"""🎯 *POSICIÓN ABIERTA*
 
+📈 *Símbolo:* {symbol}
+🎯 *Dirección:* {direction.upper()}
+💰 *Monto:* ${amount:.2f}
+🆔 *ID:* {order_id}
+⏰ *Hora:* {datetime.datetime.now().strftime('%H:%M:%S')}
 
-# --- Eventos de SocketIO (si usas SocketIO en tu frontend) ---
+⏳ *Esperando resultado...*"""
+
+        send_telegram_message(open_message)
+        socketio.emit('bot_status', {'message': f"Posición abierta: {direction.upper()} {symbol} ${amount:.2f}", 'status': 'open_position', 'order_id': order_id}, room=sid)
+
+        # Esperar un poco más de 1 minuto para asegurar que el resultado esté disponible
+        # La API de IQ Option puede tardar unos segundos en actualizar el resultado.
+        time.sleep(65) # Espera 65 segundos (1 minuto y 5 segundos adicionales)
+
+        # Verificar el resultado de la operación
+        # check_win devuelve la ganancia o pérdida neta
+        profit = iq_api_instance.check_win(order_id)
+        result = 'PENDING' # Estado inicial
+        if profit is None:
+            result = 'UNKNOWN' # No se pudo obtener el resultado
+            logger.warning(f"No se pudo verificar el resultado de la operación {order_id}.")
+            close_message = f"""❓ *RESULTADO DESCONOCIDO*
+
+📈 *Símbolo:* {symbol}
+🎯 *Dirección:* {direction.upper()}
+💰 *Monto:* ${amount:.2f}
+🆔 *ID:* {order_id}
+⏰ *Cierre (aprox):* {datetime.datetime.now().strftime('%H:%M:%S')}
+
+⚠️ *No se pudo obtener el resultado. Verifica IQ Option.*"""
+            send_telegram_message(close_message)
+            socketio.emit('bot_status', {'message': f"Resultado de operación {order_id} desconocido.", 'status': 'unknown_result'}, room=sid)
+            # Podrías decidir si esto cuenta como pérdida para Martingala o si se reintenta
+            # Por ahora, se maneja como "desconocido" y se reporta.
+            # Para fines de martingala, quizás mejor tratarlo como pérdida para ser conservador
+            # o implementa una lógica para reintentar la verificación.
+            return {"symbol": symbol, "amount": amount, "result": result, "profit": 0}
+
+        elif profit > 0:
+            result = 'WIN'
+        elif profit < 0:
+            result = 'LOSS'
+        else: # profit == 0, puede ser empate o comisión cero
+            result = 'DRAW' # En el trading binario, 0 profit suele ser un empate
+
+        # Notificar cierre al frontend y Telegram
+        close_message = f"""🏁 *POSICIÓN CERRADA*
+
+📈 *Símbolo:* {symbol}
+🎯 *Dirección:* {direction.upper()}
+💰 *Monto invertido:* ${amount:.2f}
+🆔 *ID:* {order_id}
+{"✅ *Resultado:* GANADA" if result == 'WIN' else ("❌ *Resultado:* PERDIDA" if result == 'LOSS' else "⚪ *Resultado:* EMPATE")}
+💵 *P&L:* {"+" if profit > 0 else ""}${profit:.2f}
+⏰ *Cierre:* {datetime.datetime.now().strftime('%H:%M:%S')}"""
+
+        send_telegram_message(close_message)
+
+        return {
+            "symbol": symbol,
+            "amount": amount,
+            "result": result,
+            "profit": profit,
+            "order_id": order_id
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error en execute_trade para {email}: {str(e)}", exc_info=True)
+        error_msg_telegram = f"❌ *ERROR EN EJECUCIÓN*\n👤 Usuario: `{email}`\n📈 Símbolo: {symbol}\n💰 Monto: ${amount:.2f}\n❌ Error: {str(e)}"
+        send_telegram_message(error_msg_telegram)
+        socketio.emit('bot_status', {'message': f"Error crítico al ejecutar operación: {str(e)}. Bot podría detenerse.", 'status': 'trade_error'}, room=sid)
+        return {"symbol": symbol, "amount": amount, "result": "ERROR", "profit": 0, "message": str(e)}
+
+# --- Manejo de Eventos WebSocket (SocketIO) ---
+
 @socketio.on('connect')
-def test_connect():
-    logger.info(f"✨ Cliente conectado a SocketIO: {request.sid}")
-    emit('my response', {'data': 'Conectado'}, room=request.sid)
+def handle_connect():
+    """Manejar conexión WebSocket"""
+    logger.info(f"🔌 Cliente SocketIO conectado: {request.sid}")
+    # Puedes emitir un mensaje de bienvenida o estado inicial aquí
+    emit('status', {'message': 'Conectado al servidor de trading bot.', 'sid': request.sid})
 
 @socketio.on('disconnect')
-def test_disconnect():
-    logger.info(f"🔌 Cliente desconectado de SocketIO: {request.sid}")
-    # Puedes limpiar sesiones si lo deseas aquí, aunque el logout ya lo hace.
+def handle_disconnect():
+    """Manejar desconexión WebSocket"""
+    logger.info(f"🔌 Cliente SocketIO desconectado: {request.sid}")
+    # Si un usuario se desconecta, podrías querer detener su bot si estaba activo
+    # Sin embargo, el bot se ejecuta en un hilo separado y la sesión de Flask
+    # maneja la autenticación. El bot continuará hasta que se haga logout explícitamente.
 
+# --- Ruta de prueba general ---
+@app.route('/test', methods=['GET'])
+def test():
+    """Endpoint de prueba para verificar el estado general del servidor."""
+    return jsonify({
+        "status": "OK",
+        "message": "Servidor funcionando correctamente",
+        "timestamp": datetime.datetime.now().isoformat(),
+        "active_iq_sessions": len(user_sessions),
+        "active_running_bots": len([k for k, v in active_bots.items() if v]),
+        "telegram_configured": bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)
+    }), 200
 
 # --- Inicio de la aplicación Flask y SocketIO ---
 if __name__ == '__main__':
     logger.info("🚀 Iniciando servidor de trading bot...")
-    
-    # --- LLAMADA AL DIAGNÓSTICO DE RED ---
-    diagnose_network()
-    # ------------------------------------
-
     send_telegram_message("🚀 *SERVIDOR DE TRADING INICIADO*\n⏰ " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
     # Determinar si estamos en producción (Render)
@@ -826,7 +837,7 @@ if __name__ == '__main__':
         # y no actives debug mode.
         # socketio.run() con gunicorn se ejecuta a través del Procfile,
         # pero para desarrollo directo sin Procfile, puedes usar esto:
-        socketio.run(app, host='0.0.0.0', port=port, debug=False)
+        socketio.run(app, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True) # allow_unsafe_werkzeug si usas Flask's dev server en prod
     else:
-        # En desarrollo, puedes usar el servidor de desarrollo de Flask
-        socketio.run(app, host='0.0.0.0', port=port, debug=True, allow_unsafe_werkzeug=True)
+        # En desarrollo, usa el servidor de desarrollo de Flask
+        socketio.run(app, debug=True, host='0.0.0.0', port=port)
