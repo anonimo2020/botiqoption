@@ -16,6 +16,7 @@ eventlet.monkey_patch()
 
 # --- Configuración de la aplicación Flask ---
 app = Flask(__name__)
+CORS(app, origins=["https://iqoptionbot.ct.ws"])
 
 # Configuración de SECRET_KEY desde variables de entorno
 app.secret_key = os.environ.get('FLASK_SECRET_KEY')
