@@ -129,7 +129,6 @@ def login():
 
         # Crear nueva conexión a IQ Option
         iq = IQ_Option(email, password)
-        iq.set_max_reconnect(5) # Intentar reconectar 5 veces
 
         logger.info(f"Conectando a IQ Option para {email}...")
         connect_result = iq.connect()
