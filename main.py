@@ -75,7 +75,7 @@ def send_telegram_message(message):
         logger.warning("⚠️ No se puede enviar mensaje a Telegram: Token o Chat ID no configurados.")
         return
 
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    url = f"https://www.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     logger.info(f"🌐 Preparing Telegram API request to URL: '{url}'")
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
