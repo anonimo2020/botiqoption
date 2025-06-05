@@ -1,28 +1,29 @@
-# 🚨 ¡ESTO DEBE IR SIEMPRE PRIMERO!
+# 🚨 ¡ESTO DEBE IR PRIMERO!
 import eventlet
 eventlet.monkey_patch()
 
-# Después de monkey_patch(), ya puedes importar el resto
 import os
-from flask import Flask, request, jsonify, session
-from flask_cors import CORS
-from flask_socketio import SocketIO, emit
-from iqoptionapi.stable_api import IQ_Option
-from dotenv import load_dotenv
 import threading
 import time
+from dotenv import load_dotenv
+from flask import Flask, request, jsonify, session
+from flask_cors import CORS
+from flask_socketio import SocketIO, emit, join_room, leave_room
+from iqoptionapi.stable_api import IQ_Option
 
-eventlet.monkey_patch()
+# Cargar .env si es local
+load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = "supersecretkey"  # Cámbialo en producción
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "insecure-default")  # Setea FLASK_SECRET_KEY en Render
 CORS(app, supports_credentials=True)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 
+# Sesiones de usuario y bots
 sessions = {}
 
 # ====================
-# Helper IQ Option Bot
+# Hilo del Bot
 # ====================
 class BotThread(threading.Thread):
     def __init__(self, user_id, iq, symbol, amount, martingalas, account_type):
@@ -57,17 +58,17 @@ class BotThread(threading.Thread):
         self.running = False
 
 # ====================
-# Rutas API REST
+# Rutas HTTP
 # ====================
 @app.route("/login", methods=["POST"])
 def login():
-    data = request.json
-    email, password = data["email"], data["password"]
+    data = request.get_json()
+    email, password = data.get("email"), data.get("password")
     iq = IQ_Option(email, password)
     iq.connect()
     if iq.check_connect():
         session["user_id"] = email
-        iq.change_balance("PRACTICE")  # Default
+        iq.change_balance("PRACTICE")
         balance = iq.get_balance()
         sessions[email] = {"iq": iq, "bot": None}
         return jsonify(success=True, user={"email": email, "balance": balance, "account_type": "PRACTICE"})
@@ -76,7 +77,7 @@ def login():
 @app.route("/logout", methods=["POST"])
 def logout():
     user_id = session.get("user_id")
-    if user_id and user_id in sessions:
+    if user_id in sessions:
         sessions[user_id]["iq"].close()
         sessions.pop(user_id)
     session.clear()
@@ -88,17 +89,16 @@ def symbols():
     if user_id not in sessions:
         return jsonify(success=False, error="No autenticado"), 401
     iq = sessions[user_id]["iq"]
-    assets = iq.get_all_open_time()
-    pairs = [k for k, v in assets["binary"].items() if v["open"]]
-    return jsonify(symbols=pairs)
+    activos = iq.get_all_open_time()
+    pares = [p for p, v in activos["binary"].items() if v["open"]]
+    return jsonify(symbols=pares)
 
 @app.route("/start_bot", methods=["POST"])
 def start_bot():
     user_id = session.get("user_id")
     if user_id not in sessions:
         return jsonify(error="No autenticado"), 401
-
-    data = request.json
+    data = request.get_json()
     symbol = data["symbol"]
     amount = float(data["amount"])
     martingalas = int(data["martingalas"])
@@ -124,20 +124,22 @@ def stop_bot():
 # Socket.IO
 # ====================
 @socketio.on("connect")
-def handle_connect():
+def on_connect():
     user_id = session.get("user_id")
     if user_id:
-        emit("bot_status", {"message": "Conexión establecida", "status": "connected"}, room=request.sid)
-        socketio.enter_room(request.sid, user_id)
+        join_room(user_id)
+        emit("bot_status", {"message": "Conectado a Socket.IO", "status": "connected"}, room=user_id)
     else:
         emit("bot_status", {"message": "No autenticado", "status": "error"})
 
 @socketio.on("disconnect")
-def handle_disconnect():
-    socketio.leave_room(request.sid, session.get("user_id", ""))
+def on_disconnect():
+    user_id = session.get("user_id")
+    if user_id:
+        leave_room(user_id)
 
 # ====================
-# Main
+# Run local / Render
 # ====================
 if __name__ == "__main__":
     socketio.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
