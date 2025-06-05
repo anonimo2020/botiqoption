@@ -4,5 +4,4 @@ flask-socketio
 eventlet
 iqoptionapi
 python-dotenv
-
 iqoptionapi @ git+https://github.com/Lu-Yi-Hsun/iqoptionapi.git
