@@ -1,8 +1,14 @@
+# 🚨 ¡ESTO DEBE IR SIEMPRE PRIMERO!
+import eventlet
+eventlet.monkey_patch()
+
+# Después de monkey_patch(), ya puedes importar el resto
+import os
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 from iqoptionapi.stable_api import IQ_Option
-import eventlet
+from dotenv import load_dotenv
 import threading
 import time
 
