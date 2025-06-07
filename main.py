@@ -799,17 +799,10 @@ cleanup_thread.daemon = True
 cleanup_thread.start()
 
 # --- Inicio de la aplicación ---
+# Al final de main.py
 if __name__ == '__main__':
+    # Este bloque SOLO se ejecuta cuando corres python main.py localmente
+    # Gunicorn NO ejecuta este bloque
     port = int(os.environ.get('PORT', 5000))
-    logger.info(f"🚀 Servidor iniciando en puerto {port}")
-    send_telegram_message(f"🚀 *SERVIDOR INICIADO*\n⏰ {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    
-    # Determinar entorno
-    is_production = os.environ.get('FLASK_ENV') == 'production' or 'RENDER' in os.environ
-    
-    if is_production:
-        # En producción con Gunicorn
-        socketio.run(app, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True)
-    else:
-        # En desarrollo
-        socketio.run(app, debug=True, host='0.0.0.0', port=port)
+    logger.info(f"🚀 Iniciando servidor de desarrollo en puerto {port}")
+    socketio.run(app, debug=True, host='0.0.0.0', port=port)
