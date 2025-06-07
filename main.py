@@ -17,7 +17,6 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from iqoptionapi.stable_api import IQ_Option
 from flask_session import Session
-import redis
 import json
 
 # --- Configuración de la aplicación Flask ---
