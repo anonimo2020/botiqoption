@@ -6,8 +6,9 @@ flask-limiter==3.3.1
 eventlet==0.33.3
 requests==2.31.0
 numpy==1.24.3
-iqoptionapi==stable
 gunicorn==21.2.0
-gunicorn[eventlet]==21.2.0
 redis==4.6.0
 python-dotenv==1.0.0
+websocket-client==1.6.1
+# Instalar iqoptionapi desde GitHub
+git+https://github.com/Lu-Yi-Hsun/iqoptionapi.git#egg=iqoptionapi
