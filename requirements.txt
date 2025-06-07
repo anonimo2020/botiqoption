@@ -7,8 +7,6 @@ eventlet==0.33.3
 requests==2.31.0
 numpy==1.24.3
 gunicorn==21.2.0
-redis==4.6.0
 python-dotenv==1.0.0
-websocket-client==1.6.1
-# Instalar iqoptionapi desde GitHub
+websocket-client==0.56
 git+https://github.com/Lu-Yi-Hsun/iqoptionapi.git#egg=iqoptionapi
