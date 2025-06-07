@@ -9,3 +9,5 @@ numpy==1.24.3
 iqoptionapi==stable
 gunicorn==21.2.0
 gunicorn[eventlet]==21.2.0
+redis==4.6.0
+python-dotenv==1.0.0
