@@ -1,12 +1,14 @@
-version: 1
 services:
   - type: web
-    name: iq-option-bot
+    name: botiqoption
     env: python
-    plan: free
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn app:app --worker-class eventlet -w 1 --bind 0.0.0.0:$PORT"
+    startCommand: "gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:$PORT backend:app"
     envVars:
-      - key: TELEGRAM_BOT_TOKEN
-      - key: TELEGRAM_CHAT_ID
       - key: FLASK_SECRET_KEY
+        generateValue: true
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+    healthCheckPath: /health
