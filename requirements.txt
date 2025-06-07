@@ -1,4 +1,6 @@
 Flask==2.3.3
+setuptools==65.5.0
+wheel
 Flask-SocketIO==5.3.6
 Flask-Cors==4.0.0
 Flask-Session>=0.5.0
