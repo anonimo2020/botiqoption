@@ -661,23 +661,47 @@ def login():
         
         if not check:
             logger.error(f"Error de conexión: {reason}")
-            if reason == "2FA":
+        
+            # ── Normalizar el motivo (reason) ────────────────────────
+            if isinstance(reason, dict):            # p.ej. {'code': '…'}
+                code = reason.get("code", "")
+                raw_msg = reason.get("message", "")
+            else:                                   # viene como str → intenta JSON
+                try:
+                    parsed = json.loads(reason)
+                    code = parsed.get("code", "")
+                    raw_msg = parsed.get("message", "")
+                except Exception:
+                    code = str(reason)
+                    raw_msg = str(reason)
+            # ─────────────────────────────────────────────────────────
+        
+            if code == "2FA":
                 return jsonify({
                     "success": False,
                     "message": "Autenticación de dos factores requerida",
                     "code": "2FA_REQUIRED"
                 }), 401
-            else:
+        
+            elif code == "invalid_credentials":
                 return jsonify({
                     "success": False,
-                    "message": f"Error de conexión: {reason}"
-                }), 503
+                    "message": "Correo o contraseña incorrecta",
+                    "code": "INVALID_CREDENTIALS"
+                }), 401
+        
+            # cualquier otro error
+            return jsonify({
+                "success": False,
+                "message": f"Error de conexión: {raw_msg}"
+            }), 503
+      
         
         # Verificar conexión establecida
         if not iq.check_connect():
             return jsonify({
                 "success": False,
-                "message": "Credenciales incorrectas"
+                "message": "Correo o contraseña incorrecta"   # mismo texto que arriba
             }), 401
         
         # Obtener información del usuario
