@@ -50,8 +50,8 @@ app.config.update(
 )
 Session(app)
 
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
-CORS(app, supports_credentials=True, origins=ALLOWED_ORIGINS)
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://iqoptionbot.ct.ws").split(",")(",")
+CORS(app, supports_credentials=True, resources={r"/*": {"origins": ALLOWED_ORIGINS}})
 
 # Limiter: usar solo kwargs para evitar collision
 limiter = Limiter(
