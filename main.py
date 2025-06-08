@@ -273,4 +273,4 @@ def api_symbols():
     return jsonify({"symbols": [
         {"symbol": "EURUSD", "name": "EUR/USD", "type": "forex"},
         {"symbol": "GBPUSD", "name": "GBP/USD", "type": "forex"},
-        {"symbol": "USDJPY
+        {"symbol": "USDJPY"
