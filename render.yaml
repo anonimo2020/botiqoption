@@ -4,7 +4,7 @@ services:
     env: python
     pythonVersion: "3.10"
     buildCommand: "chmod +x build.sh && ./build.sh"
-    startCommand: "gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:$PORT main:app"
+    web: gunicorn --worker-class sync --workers 1 --threads 4 --bind 0.0.0.0:$PORT main:app
     envVars:
       - key: FLASK_SECRET_KEY
         generateValue: true
