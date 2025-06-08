@@ -1,11 +1,34 @@
-Flask==2.3.2
-flask-socketio==5.3.4
-flask-cors==4.0.0
-flask-session==0.5.0
-flask-limiter==3.3.1
-eventlet==0.33.3
-requests==2.31.0
-numpy==1.24.3
+# Core Flask
+Flask==2.3.3
 gunicorn==21.2.0
-python-dotenv==1.0.0
-websocket-client==0.56
+
+# Flask Extensions
+Flask-CORS==4.0.0
+Flask-Session==0.5.0
+Flask-Limiter==3.5.0
+
+# HTTP & WebSocket
+requests==2.31.0
+websocket-client==1.6.4
+
+# Data & Math
+numpy==1.24.3
+pandas==2.0.3
+
+# Threading & Async
+threading-timer==1.0.0
+
+# Utilities
+python-dateutil==2.8.2
+pytz==2023.3
+
+# Security
+cryptography==41.0.4
+
+# Performance
+gevent==23.7.0
+
+# System monitoring
+psutil==5.9.5
+
+# IQ Option API será instalada via Git en build.sh
