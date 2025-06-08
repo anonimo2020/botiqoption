@@ -2,17 +2,16 @@ services:
   - type: web
     name: trading-bot-api
     env: python
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:$PORT backend:app"
+    pythonVersion: "3.10"
+    buildCommand: "chmod +x build.sh && ./build.sh"
+    startCommand: "gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:$PORT main:app"
     envVars:
       - key: FLASK_SECRET_KEY
         generateValue: true
       - key: TELEGRAM_BOT_TOKEN
-        sync: false
+        value: "7787754995:AAEvM36bO9B4SvGA1cr1VP1j-Rx6on5LrjM"
       - key: TELEGRAM_CHAT_ID
-        sync: false
+        value: "7009100334"
       - key: FLASK_ENV
         value: production
     healthCheckPath: /health
-    domains:
-      - botiqoption-4.onrender.com
