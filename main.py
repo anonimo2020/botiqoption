@@ -91,6 +91,7 @@ def require_auth(f):
 # ENDPOINTS
 # -----------------------------------------------------------------------------
 @app.route('/api/login', methods=['POST'])
+@app.route('/login', methods=['POST'])
 @limiter.limit("5 per minute")
 def login():
     data = request.get_json() or {}
@@ -119,6 +120,7 @@ def logout():
     return jsonify({"success": True}), 200
 
 @app.route('/api/balance', methods=['GET'])
+@app.route('/balance', methods=['GET'])
 @require_auth
 def balance():
     iq = user_sessions.get(session['user_email'])
