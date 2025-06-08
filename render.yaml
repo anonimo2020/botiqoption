@@ -1,10 +1,10 @@
 services:
   - type: web
-    name: trading-bot-api
+    name: binary-options-bot-pro
     env: python
     pythonVersion: "3.10"
     buildCommand: "chmod +x build.sh && ./build.sh"
-    web: gunicorn main:app --bind 0.0.0.0:$PORT --workers 1 --threads 4
+    startCommand: "gunicorn main:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 --keep-alive 2 --worker-class gevent"
     envVars:
       - key: FLASK_SECRET_KEY
         generateValue: true
@@ -12,8 +12,21 @@ services:
         value: "7787754995:AAEvM36bO9B4SvGA1cr1VP1j-Rx6on5LrjM"
       - key: TELEGRAM_CHAT_ID
         value: "7009100334"
-        -key:PORT
-         value:"5000"
+      - key: PORT
+        value: "5000"
       - key: FLASK_ENV
-        value: production
+        value: "production"
+      - key: PYTHONPATH
+        value: "."
+      - key: WEB_CONCURRENCY
+        value: "1"
+      - key: LOG_LEVEL
+        value: "INFO"
     healthCheckPath: /health
+    plan: starter
+    region: oregon
+    autoDeploy: true
+    disk:
+      name: binary-trading-storage
+      mountPath: /tmp
+      sizeGB: 1
