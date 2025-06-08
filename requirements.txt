@@ -11,12 +11,9 @@ Flask-Limiter==3.5.0
 requests==2.31.0
 websocket-client==1.6.4
 
-# Data & Math
-numpy==1.24.3
-pandas==2.0.3
-
-# Threading & Async
-threading-timer==1.0.0
+# Data & Math - Versiones compatibles con Python 3.10
+numpy==1.25.2
+pandas==2.1.1
 
 # Utilities
 python-dateutil==2.8.2
@@ -25,8 +22,8 @@ pytz==2023.3
 # Security
 cryptography==41.0.4
 
-# Performance
-gevent==23.7.0
+# Performance (opcional, se puede comentar si da problemas)
+# gevent==23.7.0
 
 # System monitoring
 psutil==5.9.5
