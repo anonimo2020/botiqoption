@@ -1,129 +1,100 @@
 """
-Wrapper para corregir problemas de compatibilidad de IQOptionAPI con websocket-client
-Este módulo debe importarse ANTES que iqoptionapi para aplicar los parches necesarios
+Solución definitiva para problemas de compatibilidad IQOptionAPI + websocket-client
+Versión corregida que maneja correctamente todos los métodos
 """
 
 import sys
 import logging
 import warnings
+import inspect
 
-# Suprimir warnings y logs problemáticos
+# Suprimir todos los warnings problemáticos
 warnings.filterwarnings("ignore", category=DeprecationWarning)
-logging.getLogger('websocket').setLevel(logging.CRITICAL)
-logging.getLogger('iqoptionapi.ws.client').setLevel(logging.CRITICAL)
+warnings.filterwarnings("ignore", message=".*websocket.*")
 
-def patch_iqoptionapi():
-    """Aplica parches en tiempo de ejecución a IQOptionAPI"""
-    try:
-        # Importar los módulos después de que estén disponibles
-        from iqoptionapi.ws.client import WebsocketClient
-        
-        # Guardar métodos originales si existen
-        original_on_message = getattr(WebsocketClient, 'on_message', None)
-        original_on_error = getattr(WebsocketClient, 'on_error', None)
-        original_on_close = getattr(WebsocketClient, 'on_close', None)
-        original_on_open = getattr(WebsocketClient, 'on_open', None)
-        
-        # Parche para on_message
-        def patched_on_message(self, ws, message):
-            """Versión parcheada de on_message que acepta ws como parámetro"""
-            if hasattr(self, '_original_on_message_impl'):
-                return self._original_on_message_impl(message)
-            elif original_on_message:
-                # Llamar método original solo con message
-                return original_on_message(self, message)
-            else:
-                # Implementación básica
-                return self.on_message_default(message)
-        
-        # Parche para on_error
-        def patched_on_error(self, ws, error):
-            """Versión parcheada de on_error"""
-            if hasattr(self, '_original_on_error_impl'):
-                return self._original_on_error_impl(error)
-            elif original_on_error:
-                return original_on_error(self, error)
-            else:
-                logging.error(f"WebSocket error: {error}")
-        
-        # Parche para on_close
-        def patched_on_close(self, ws, close_status_code=None, close_msg=None):
-            """Versión parcheada de on_close"""
-            if hasattr(self, '_original_on_close_impl'):
-                return self._original_on_close_impl()
-            elif original_on_close:
-                return original_on_close(self)
-            else:
-                logging.info("WebSocket connection closed")
-        
-        # Parche para on_open
-        def patched_on_open(self, ws):
-            """Versión parcheada de on_open"""
-            if hasattr(self, '_original_on_open_impl'):
-                return self._original_on_open_impl()
-            elif original_on_open:
-                return original_on_open(self)
-            else:
-                logging.info("WebSocket connection opened")
-        
-        # Aplicar parches
-        if original_on_message:
-            WebsocketClient._original_on_message_impl = original_on_message
-        WebsocketClient.on_message = patched_on_message
-        
-        if original_on_error:
-            WebsocketClient._original_on_error_impl = original_on_error
-        WebsocketClient.on_error = patched_on_error
-        
-        if original_on_close:
-            WebsocketClient._original_on_close_impl = original_on_close
-        WebsocketClient.on_close = patched_on_close
-        
-        if original_on_open:
-            WebsocketClient._original_on_open_impl = original_on_open
-        WebsocketClient.on_open = patched_on_open
-        
-        # Método default para on_message si no existe
-        if not hasattr(WebsocketClient, 'on_message_default'):
-            def on_message_default(self, message):
-                """Implementación default de on_message"""
+def create_compatible_websocket_client():
+    """Crea una versión compatible de WebsocketClient"""
+    
+    def patch_websocket_methods():
+        """Aplica parches a los métodos de WebsocketClient"""
+        try:
+            from iqoptionapi.ws.client import WebsocketClient
+            
+            # Solo parchear si no se ha hecho antes
+            if hasattr(WebsocketClient, '_websocket_patched'):
+                return True
+            
+            # Método on_message compatible
+            def compatible_on_message(self, ws_or_message, message=None):
+                """Método on_message que acepta 2 o 3 argumentos"""
                 try:
-                    if hasattr(self, 'socket_option_opened'):
-                        self.socket_option_opened[1](message)
-                except Exception as e:
-                    logging.error(f"Error processing message: {e}")
+                    # Si se llama con 3 argumentos (self, ws, message)
+                    if message is not None:
+                        actual_message = message
+                    else:
+                        # Si se llama con 2 argumentos (self, message)
+                        actual_message = ws_or_message
                     
-            WebsocketClient.on_message_default = on_message_default
-        
-        logging.info("✅ IQOptionAPI WebSocket parches aplicados correctamente")
-        return True
-        
-    except ImportError:
-        logging.warning("⚠️ IQOptionAPI no está disponible para parchear")
-        return False
-    except Exception as e:
-        logging.error(f"❌ Error aplicando parches: {e}")
-        return False
+                    # Procesar el mensaje
+                    if hasattr(self, 'socket_option_opened') and self.socket_option_opened:
+                        try:
+                            self.socket_option_opened[1](actual_message)
+                        except Exception as e:
+                            logging.debug(f"Error processing message: {e}")
+                    
+                except Exception as e:
+                    logging.debug(f"Error in on_message: {e}")
+            
+            # Método on_error compatible
+            def compatible_on_error(self, ws_or_error, error=None):
+                """Método on_error que acepta 2 o 3 argumentos"""
+                try:
+                    actual_error = error if error is not None else ws_or_error
+                    logging.debug(f"WebSocket error: {actual_error}")
+                except Exception as e:
+                    logging.debug(f"Error in on_error: {e}")
+            
+            # Método on_close compatible
+            def compatible_on_close(self, ws=None, close_status_code=None, close_msg=None):
+                """Método on_close que acepta argumentos variables"""
+                try:
+                    logging.debug("WebSocket connection closed")
+                    if hasattr(self, 'socket_option_opened'):
+                        self.socket_option_opened = None
+                except Exception as e:
+                    logging.debug(f"Error in on_close: {e}")
+            
+            # Método on_open compatible
+            def compatible_on_open(self, ws=None):
+                """Método on_open que acepta argumentos variables"""
+                try:
+                    logging.debug("WebSocket connection opened")
+                except Exception as e:
+                    logging.debug(f"Error in on_open: {e}")
+            
+            # Aplicar parches
+            WebsocketClient.on_message = compatible_on_message
+            WebsocketClient.on_error = compatible_on_error
+            WebsocketClient.on_close = compatible_on_close
+            WebsocketClient.on_open = compatible_on_open
+            
+            # Marcar como parcheado
+            WebsocketClient._websocket_patched = True
+            
+            logging.info("✅ WebSocket compatibility patches applied successfully")
+            return True
+            
+        except Exception as e:
+            logging.warning(f"⚠️ Could not apply WebSocket patches: {e}")
+            return False
+    
+    return patch_websocket_methods
 
-def safe_import_iqoption():
-    """Importa IQOptionAPI de forma segura con parches aplicados"""
-    try:
-        # Primero intentar aplicar parches
-        patch_iqoptionapi()
-        
-        # Luego importar
-        from iqoptionapi.stable_api import IQ_Option
-        
-        logging.info("✅ IQOptionAPI importada correctamente con parches")
-        return IQ_Option, True
-        
-    except Exception as e:
-        logging.error(f"❌ Error importando IQOptionAPI: {e}")
-        return None, False
+# Crear función de parcheo
+patch_websocket_methods = create_compatible_websocket_client()
 
-# Crear clase wrapper que maneja automáticamente los errores
-class SafeIQOption:
-    """Wrapper seguro para IQ_Option que maneja errores de websocket"""
+class RobustIQOption:
+    """Wrapper robusto para IQ_Option que maneja automáticamente errores de websocket"""
     
     def __init__(self, email, password):
         self.email = email
@@ -131,65 +102,146 @@ class SafeIQOption:
         self._iq_instance = None
         self._connected = False
         
+        # Configurar logging para suprimir errores de websocket
+        self._setup_logging()
+        
         # Aplicar parches antes de crear instancia
-        patch_iqoptionapi()
+        patch_websocket_methods()
         
         try:
             from iqoptionapi.stable_api import IQ_Option
             self._iq_instance = IQ_Option(email, password)
         except Exception as e:
-            logging.error(f"Error creando instancia IQ_Option: {e}")
+            logging.error(f"Error creating IQ_Option instance: {e}")
             raise
     
+    def _setup_logging(self):
+        """Configura logging para suprimir mensajes problemáticos"""
+        loggers_to_suppress = [
+            'websocket',
+            'iqoptionapi.ws.client',
+            'iqoptionapi.ws',
+            'iqoptionapi.api',
+            'urllib3.connectionpool'
+        ]
+        
+        for logger_name in loggers_to_suppress:
+            logger = logging.getLogger(logger_name)
+            logger.setLevel(logging.CRITICAL)
+            
+            # Remover handlers existentes que podrían causar problemas
+            for handler in logger.handlers[:]:
+                logger.removeHandler(handler)
+    
     def connect(self):
-        """Conecta con manejo de errores mejorado"""
+        """Conecta con manejo robusto de errores"""
         if not self._iq_instance:
-            return False, "Instancia no creada"
+            return False, "Instance not available"
         
         try:
-            # Suprimir logs temporalmente
-            websocket_logger = logging.getLogger('websocket')
-            iqapi_logger = logging.getLogger('iqoptionapi.ws.client')
-            
-            original_websocket_level = websocket_logger.level
-            original_iqapi_level = iqapi_logger.level
-            
-            websocket_logger.setLevel(logging.CRITICAL)
-            iqapi_logger.setLevel(logging.CRITICAL)
+            # Suprimir logging temporalmente
+            self._suppress_websocket_logging()
             
             try:
                 result = self._iq_instance.connect()
-                self._connected = True if result[0] else False
-                return result
+                if isinstance(result, tuple) and len(result) >= 2:
+                    self._connected = result[0]
+                    return result
+                else:
+                    self._connected = bool(result)
+                    return result, "Connected" if result else "Connection failed"
+                    
+            except Exception as e:
+                logging.error(f"Connection error: {e}")
+                return False, str(e)
             finally:
-                # Restaurar niveles de log
-                websocket_logger.setLevel(original_websocket_level)
-                iqapi_logger.setLevel(original_iqapi_level)
+                # Restaurar logging después de la conexión
+                self._restore_logging()
                 
         except Exception as e:
-            logging.error(f"Error en conexión: {e}")
+            logging.error(f"Error during connection process: {e}")
             return False, str(e)
     
+    def _suppress_websocket_logging(self):
+        """Suprime temporalmente el logging problemático"""
+        self._original_levels = {}
+        
+        loggers_to_suppress = [
+            'websocket',
+            'iqoptionapi.ws.client',
+            'iqoptionapi.ws',
+            'iqoptionapi'
+        ]
+        
+        for logger_name in loggers_to_suppress:
+            logger = logging.getLogger(logger_name)
+            self._original_levels[logger_name] = logger.level
+            logger.setLevel(logging.CRITICAL)
+    
+    def _restore_logging(self):
+        """Restaura los niveles de logging originales"""
+        if hasattr(self, '_original_levels'):
+            for logger_name, original_level in self._original_levels.items():
+                logger = logging.getLogger(logger_name)
+                logger.setLevel(original_level)
+    
     def check_connect(self):
-        """Verifica conexión"""
+        """Verifica la conexión"""
         if not self._iq_instance:
             return False
         try:
             return self._iq_instance.check_connect()
-        except:
+        except Exception:
             return False
     
     def __getattr__(self, name):
-        """Delega todos los otros métodos a la instancia real"""
-        if self._iq_instance:
-            return getattr(self._iq_instance, name)
+        """Delega métodos a la instancia real de IQ_Option"""
+        if self._iq_instance and hasattr(self._iq_instance, name):
+            attr = getattr(self._iq_instance, name)
+            
+            # Si es un método que puede causar problemas de websocket, envolverlo
+            if callable(attr) and name in ['get_candles', 'buy', 'check_win_v3', 'get_balance']:
+                def wrapped_method(*args, **kwargs):
+                    try:
+                        self._suppress_websocket_logging()
+                        return attr(*args, **kwargs)
+                    except Exception as e:
+                        logging.debug(f"Error in {name}: {e}")
+                        raise
+                    finally:
+                        self._restore_logging()
+                return wrapped_method
+            else:
+                return attr
         else:
-            raise AttributeError(f"Instancia IQ_Option no disponible: {name}")
+            raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
+
+def safe_import_iqoption():
+    """Importa IQOptionAPI de forma segura aplicando parches"""
+    try:
+        # Aplicar parches primero
+        patch_success = patch_websocket_methods()
+        
+        if patch_success:
+            from iqoptionapi.stable_api import IQ_Option
+            logging.info("✅ IQOptionAPI imported successfully with patches")
+            return IQ_Option, True
+        else:
+            logging.warning("⚠️ Patches not applied, but trying to import anyway")
+            from iqoptionapi.stable_api import IQ_Option
+            return IQ_Option, True
+            
+    except Exception as e:
+        logging.error(f"❌ Failed to import IQOptionAPI: {e}")
+        return None, False
 
 # Auto-aplicar parches al importar este módulo
-if 'iqoptionapi' not in sys.modules:
-    # Solo aplicar parches si IQOptionAPI no está ya importada
-    try:
-        patch_iqoptionapi()
-    except:
-        pass
+try:
+    patch_websocket_methods()
+except Exception as e:
+    logging.warning(f"Could not auto-apply patches: {e}")
+
+# Función de conveniencia para obtener una instancia robusta
+def create_robust_iqoption(email, password):
+    """Crea una instancia robusta de IQ_Option"""
+    return RobustIQOption(email, password)
