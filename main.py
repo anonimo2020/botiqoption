@@ -48,15 +48,44 @@ from flask_session import Session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
-# Importar IQOptionAPI
+# Importar IQOptionAPI con parche de compatibilidad
 try:
-    from iqoptionapi.stable_api import IQ_Option
-    IQ_AVAILABLE = True
-    logger.info("✅ IQOptionAPI cargada correctamente")
+    # Primero importar nuestro módulo de corrección
+    from iqapi_websocket_fix import SafeIQOption, patch_iqoptionapi, safe_import_iqoption
+    
+    # Aplicar parches
+    patch_iqoptionapi()
+    
+    # Intentar importar de forma segura
+    IQ_Option, IQ_AVAILABLE = safe_import_iqoption()
+    
+    if not IQ_AVAILABLE and IQ_Option is None:
+        # Fallback a importación directa si el wrapper falla
+        from iqoptionapi.stable_api import IQ_Option
+        IQ_AVAILABLE = True
+        logger.warning("⚠️ Usando IQOptionAPI sin parches - pueden aparecer warnings")
+    
+    logger.info("✅ IQOptionAPI cargada correctamente con parches de compatibilidad")
+    
 except ImportError as e:
     logger.error(f"❌ Error importando IQOptionAPI: {e}")
     IQ_AVAILABLE = False
+    IQ_Option = None
+    SafeIQOption = None
     raise Exception("IQOptionAPI no está instalada. Por favor instala: pip install git+https://github.com/Lu-Yi-Hsun/iqoptionapi.git")
+except Exception as e:
+    logger.warning(f"⚠️ Warning al cargar IQOptionAPI: {e}")
+    # Intentar importación directa como fallback
+    try:
+        from iqoptionapi.stable_api import IQ_Option
+        IQ_AVAILABLE = True
+        SafeIQOption = None
+        logger.info("✅ IQOptionAPI cargada con importación directa")
+    except ImportError:
+        IQ_AVAILABLE = False
+        IQ_Option = None
+        SafeIQOption = None
+        raise Exception("IQOptionAPI no está instalada")
 
 # Configuración Flask
 app = Flask(__name__)
@@ -1082,8 +1111,13 @@ def login():
                     pass
                 del user_sessions[email]
         
-        # Crear nueva conexión IQ Option
-        iq = IQ_Option(email, password)
+        # Crear nueva conexión IQ Option con wrapper seguro
+        if SafeIQOption:
+            # Usar wrapper seguro que maneja automáticamente los errores de websocket
+            iq = SafeIQOption(email, password)
+        else:
+            # Fallback a instancia directa
+            iq = IQ_Option(email, password)
         
         # Intentar conectar
         logger.info("Conectando con IQ Option...")
