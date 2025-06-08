@@ -29,6 +29,98 @@ logger = logging.getLogger(__name__)
 # Agregar path para IQOptionAPI local si existe
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# ============================================================================
+# PARCHE PARA WEBSOCKET - SOLUCIONA ERROR DE ARGUMENTOS
+# ============================================================================
+
+def apply_websocket_patch():
+    """
+    Aplica parche para solucionar el error:
+    'WebsocketClient.on_close() takes 1 positional argument but 3 were given'
+    """
+    try:
+        logger.info("🔧 Aplicando parche de WebSocket...")
+        
+        # Crear wrapper para WebSocketApp que maneja argumentos variables
+        import websocket
+        from websocket import WebSocketApp
+        
+        class CompatibleWebSocketApp(WebSocketApp):
+            """WebSocketApp compatible con diferentes versiones de websocket-client"""
+            
+            def __init__(self, url, **kwargs):
+                def wrap_callback(callback):
+                    if callback is None:
+                        return None
+                    
+                    def wrapper(*args, **kwargs_inner):
+                        try:
+                            # Intentar con el número original de argumentos
+                            return callback(*args, **kwargs_inner)
+                        except TypeError as e:
+                            if "positional argument" in str(e):
+                                # Error de argumentos, usar solo el primer argumento (self/ws)
+                                try:
+                                    return callback(args[0])
+                                except:
+                                    logger.debug(f"Callback wrapper handled: {e}")
+                                    pass
+                            else:
+                                raise
+                    return wrapper
+                
+                # Wrappear todos los callbacks
+                for callback_name in ['on_open', 'on_close', 'on_error', 'on_message']:
+                    if callback_name in kwargs:
+                        kwargs[callback_name] = wrap_callback(kwargs[callback_name])
+                
+                super().__init__(url, **kwargs)
+        
+        # Reemplazar WebSocketApp original
+        websocket.WebSocketApp = CompatibleWebSocketApp
+        
+        logger.info("✅ Parche de WebSocket aplicado correctamente")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Error aplicando parche de WebSocket: {e}")
+        return False
+
+def patch_iqoption_callbacks():
+    """
+    Aplica parche específico a los callbacks de IQOptionAPI
+    """
+    try:
+        # Intentar parchear después de importar
+        from iqoptionapi.ws.client import WebsocketClient
+        
+        # Guardar método original
+        original_on_close = WebsocketClient.on_close
+        
+        def patched_on_close(self, *args, **kwargs):
+            """Método on_close que acepta argumentos variables"""
+            try:
+                # Solo ejecutar la lógica básica sin argumentos adicionales
+                pass  # El método original de IQOptionAPI no hace nada especial
+            except Exception as e:
+                logger.debug(f"on_close handled: {e}")
+        
+        # Aplicar parche
+        WebsocketClient.on_close = patched_on_close
+        
+        logger.info("✅ Callbacks de IQOptionAPI parcheados")
+        return True
+        
+    except ImportError:
+        logger.debug("IQOptionAPI no disponible para parchear")
+        return False
+    except Exception as e:
+        logger.error(f"Error parcheando IQOptionAPI: {e}")
+        return False
+
+# Aplicar parches antes de importar IQOptionAPI
+apply_websocket_patch()
+
 # Flask y extensiones
 from flask import Flask, request, jsonify, session, make_response
 from flask_cors import CORS
@@ -36,11 +128,15 @@ from flask_session import Session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
-# Importar IQOptionAPI
+# Importar IQOptionAPI con parche aplicado
 try:
     from iqoptionapi.stable_api import IQ_Option
     IQ_AVAILABLE = True
     logger.info("✅ IQOptionAPI cargada correctamente")
+    
+    # Aplicar parche específico después de importar
+    patch_iqoption_callbacks()
+    
 except ImportError as e:
     logger.error(f"❌ Error importando IQOptionAPI: {e}")
     IQ_AVAILABLE = False
