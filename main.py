@@ -19,7 +19,7 @@ import json
 import signal
 import atexit
 
-# Configuración de logging optimizada
+# Configuración de logging optimizada para Render
 LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO').upper()
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL),
@@ -31,10 +31,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Suprimir logs de librerías externas
+# Suprimir logs problemáticos de websocket e IQOptionAPI
 logging.getLogger('werkzeug').setLevel(logging.WARNING)
 logging.getLogger('urllib3').setLevel(logging.WARNING)
 logging.getLogger('requests').setLevel(logging.WARNING)
+logging.getLogger('websocket').setLevel(logging.WARNING)
+logging.getLogger('iqoptionapi.ws.client').setLevel(logging.WARNING)
+logging.getLogger('iqoptionapi').setLevel(logging.WARNING)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
