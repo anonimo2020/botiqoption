@@ -40,6 +40,11 @@ pip install --no-cache-dir \
     requests==2.31.0 \
     gunicorn==21.2.0
 
+# Instalar websocket-client compatible
+echo "🔌 Instalando websocket-client compatible..."
+pip uninstall -y websocket-client websocket 2>/dev/null || true
+pip install --no-cache-dir websocket-client==1.1.0
+
 echo "📊 Instalando librerías de análisis técnico..."
 pip install --no-cache-dir \
     scipy==1.11.3 \
@@ -55,7 +60,6 @@ echo "🛠️ Instalando dependencias adicionales..."
 pip install --no-cache-dir \
     python-dateutil==2.8.2 \
     pytz==2023.3 \
-    websocket-client==1.6.4 \
     certifi==2023.7.22 \
     urllib3==2.0.7
 
