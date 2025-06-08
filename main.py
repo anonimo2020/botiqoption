@@ -1,5 +1,4 @@
-# backend.py – Versión mínima funcional (sin errores de sintaxis y Limiter corregido)
-# Compatible con el frontend Trading Bot Pro
+# backend.py – API REST + WebSocket para Trading Bot Pro con IQ Option y Telegram
 # -----------------------------------------------------------------------------
 # requirements.txt:
 # flask
@@ -50,121 +49,172 @@ app.config.update(
 )
 Session(app)
 
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://iqoptionbot.ct.ws").split(",")(",")
+# CORS (solo dominio de frontend)
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://iqoptionbot.ct.ws").split(",")
 CORS(app, supports_credentials=True, resources={r"/*": {"origins": ALLOWED_ORIGINS}})
 
-# Limiter: usar solo kwargs para evitar collision
-limiter = Limiter(
-    app=app,
-    key_func=get_remote_address,
-    default_limits=["200/day", "50/hour"]
-)
+# Rate limiter
+limiter = Limiter(app=app, key_func=get_remote_address, default_limits=["200/day", "50/hour"])
 
-socketio = SocketIO(app, cors_allowed_origins=ALLOWED_ORIGINS)
+# SocketIO
+socketio = SocketIO(app, cors_allowed_origins=ALLOWED_ORIGINS, async_mode='eventlet')
 
-# -----------------------------------------------------------------------------
-# LOGGING
-# -----------------------------------------------------------------------------
-logging.basicConfig(level=logging.INFO)
+# Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
 
-# -----------------------------------------------------------------------------
-# VARIABLES GLOBALES
-# -----------------------------------------------------------------------------
+# Sesiones e instancias por usuario
 user_sessions = {}
 active_bots = {}
 sessions_lock = Lock()
 bots_lock = Lock()
 
+# Telegram
+TG_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TG_CHAT  = os.getenv("TELEGRAM_CHAT_ID")
+
+def send_telegram(msg: str):
+    if not TG_TOKEN or not TG_CHAT:
+        return
+    url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
+    requests.post(url, json={"chat_id": TG_CHAT, "text": msg, "parse_mode": "Markdown"})
+
 # -----------------------------------------------------------------------------
-# DECORADORES
+# UTILIDADES
 # -----------------------------------------------------------------------------
+
 def require_auth(f):
     @wraps(f)
     def wrapped(*args, **kwargs):
         if 'user_email' not in session:
-            return jsonify({"error": "No autorizado"}), 401
+            return jsonify({"error": "AUTH_REQUIRED"}), 401
+        email = session['user_email']
+        with sessions_lock:
+            if email not in user_sessions:
+                session.clear()
+                return jsonify({"error": "SESSION_EXPIRED"}), 401
         return f(*args, **kwargs)
     return wrapped
 
+# Indicadores básicos con NumPy
+def calc_indicators(candles):
+    closes = np.array([c['close'] for c in candles], dtype=float)
+    if len(closes) < 20:
+        return None
+    sma20 = np.mean(closes[-20:])
+    std20 = np.std(closes[-20:])
+    rsi = 100 - (100 / (1 + np.mean(np.diff(closes[-15:])[np.diff(closes[-15:])>=0]) /
+                       np.mean(-np.diff(closes[-15:])[np.diff(closes[-15:])<0] + 1e-6)))
+    return {"price": float(closes[-1]), "sma20": float(sma20), "rsi": float(rsi)}
+
 # -----------------------------------------------------------------------------
-# ENDPOINTS
+# ENDPOINTS HTTP
 # -----------------------------------------------------------------------------
+
+@app.before_request
+def preflight():
+    if request.method == 'OPTIONS':
+        return make_response()
+
 @app.route('/api/login', methods=['POST'])
 @app.route('/login', methods=['POST'])
-@limiter.limit("5 per minute")
 def login():
     data = request.get_json() or {}
-    email = data.get('email', '').strip()
-    pwd = data.get('password', '')
+    email = data.get('email','').strip()
+    pwd   = data.get('password','')
     if not email or not pwd:
-        return jsonify({"success": False, "message": "Email y contraseña requeridos"}), 400
-    # Timeout para conectar IQ Option
+        return jsonify({"success": False, "message": "Email y contraseña son obligatorios"}), 400
+    # Timeout para conectar IQOption
     iq = IQ_Option(email, pwd)
     try:
         with eventlet.Timeout(15, False):
-            ok = iq.connect()
-        if not ok:
-            return jsonify({"success": False, "message": "No se pudo conectar a IQ Option"}), 503
+            if not iq.connect():
+                return jsonify({"success": False, "message": "Error conectando IQ Option"}), 503
     except Exception:
-        return jsonify({"success": False, "message": "Timeout conectando a IQ Option"}), 504
+        return jsonify({"success": False, "message": "Timeout IQ Option"}), 504
+    # Registro sesión
+    with sessions_lock:
+        user_sessions[email] = iq
     session['user_email'] = email
-    user_sessions[email] = iq
-    return jsonify({"success": True}), 200
+    session.permanent = True
+    send_telegram(f"🎯 Login: {email} @ {datetime.datetime.now().isoformat()}")
+    return jsonify({"success": True, "user": {"email": email}})
 
 @app.route('/api/logout', methods=['POST'])
+@app.route('/logout', methods=['POST'])
 @require_auth
 def logout():
-    email = session.pop('user_email')
-    user_sessions.pop(email, None)
-    return jsonify({"success": True}), 200
+    email = session['user_email']
+    with bots_lock:
+        active_bots[email] = False
+    with sessions_lock:
+        user_sessions.pop(email, None)
+    session.clear()
+    send_telegram(f"👋 Logout: {email} @ {datetime.datetime.now().isoformat()}")
+    return jsonify({"success": True})
 
 @app.route('/api/balance', methods=['GET'])
 @app.route('/balance', methods=['GET'])
 @require_auth
-def balance():
-    iq = user_sessions.get(session['user_email'])
+def get_balance():
+    email = session['user_email']
+    iq = user_sessions[email]
     bal = iq.get_balance()
-    return jsonify({"balance": bal}), 200
+    return jsonify({"balance": bal})
 
 @app.route('/api/symbols', methods=['GET'])
-def symbols():
+def get_symbols():
+    # Lista fija de ejemplo
     syms = ["EURUSD","GBPUSD","USDJPY"]
-    return jsonify({"symbols": syms}), 200
+    return jsonify({"symbols": syms})
 
 @app.route('/api/start_bot', methods=['POST'])
+@app.route('/start_bot', methods=['POST'])
 @require_auth
-@limiter.limit("3 per minute")
 def start_bot():
-    # Ejemplo simple de arranque de bot en hilo
-    def bot_job(email):
-        iq = user_sessions[email]
-        time.sleep(5)  # simulación
-        with bots_lock:
-            active_bots[email] = False
-        socketio.emit('bot_stopped', {'msg': 'Bot terminado'})
     email = session['user_email']
     with bots_lock:
-        if active_bots.get(email):
+        if active_bots.get(email, False):
             return jsonify({"error": "Bot ya activo"}), 400
         active_bots[email] = True
-    Thread(target=bot_job, args=(email,), daemon=True).start()
-    return jsonify({"success": True}), 200
+    config = request.get_json() or {}
+    def _run():
+        iq = user_sessions[email]
+        while active_bots.get(email):
+            candles = iq.get_candles(config.get('symbol','EURUSD'),60,100,time.time())
+            ind = calc_indicators(candles)
+            socketio.emit('analysis', ind or {}, room=email)
+            time.sleep(5)
+        socketio.emit('bot_stopped', {"email": email}, room=email)
+    Thread(target=_run, daemon=True).start()
+    return jsonify({"started": True})
 
 @app.route('/api/stop_bot', methods=['POST'])
+@app.route('/stop_bot', methods=['POST'])
 @require_auth
 def stop_bot():
     email = session['user_email']
-    with bots_lock:
-        active_bots[email] = False
-    return jsonify({"success": True}), 200
+    active_bots[email] = False
+    return jsonify({"stopped": True})
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({"status": "ok"}), 200
+    return jsonify({"status": "ok", "time": datetime.datetime.now().isoformat()})
 
 # -----------------------------------------------------------------------------
-# INICIO
+# SOCKET.IO EVENTS
 # -----------------------------------------------------------------------------
+
+@socketio.on('connect')
+def on_connect():
+    room = request.sid
+    join_room(room)
+    emit('connected', {"sid": room})
+
+# -----------------------------------------------------------------------------
+# ARRANQUE
+# -----------------------------------------------------------------------------
+
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
+    logger.info("🚀 Starting Flask main.py")
+    socketio.run(app, host='0.0.0.0', port=int(os.getenv('PORT',5000)))
