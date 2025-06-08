@@ -9,4 +9,3 @@ numpy==1.24.3
 gunicorn==21.2.0
 python-dotenv==1.0.0
 websocket-client==0.56
-git+https://github.com/Lu-Yi-Hsun/iqoptionapi.git#egg=iqoptionapi
