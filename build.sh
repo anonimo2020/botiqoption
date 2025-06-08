@@ -158,8 +158,8 @@ except Exception as e:
     print('✅ Módulo importado, warning puede ser normal')
 "
 
-# Verificar que main.py existe y es válido
-echo "📄 Verificando archivo principal..."
+# Verificar que main.py y archivos auxiliares existen
+echo "📄 Verificando archivos principales..."
 if [ -f "main.py" ]; then
     echo "✓ main.py encontrado"
     # Verificar sintaxis básica
@@ -167,6 +167,70 @@ if [ -f "main.py" ]; then
 else
     echo "❌ main.py no encontrado"
     exit 1
+fi
+
+# Verificar si existe el archivo de fix
+if [ -f "iqapi_websocket_fix.py" ]; then
+    echo "✓ iqapi_websocket_fix.py encontrado"
+    python -m py_compile iqapi_websocket_fix.py && echo "✓ Fix de compatibilidad válido"
+else
+    echo "⚠️ iqapi_websocket_fix.py no encontrado - creando..."
+    # Crear el archivo de fix si no existe
+    cat > iqapi_websocket_fix.py << 'FIXEOF'
+import sys
+import logging
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+logging.getLogger('websocket').setLevel(logging.CRITICAL)
+logging.getLogger('iqoptionapi.ws.client').setLevel(logging.CRITICAL)
+
+def patch_iqoptionapi():
+    try:
+        from iqoptionapi.ws.client import WebsocketClient
+        
+        original_on_message = getattr(WebsocketClient, 'on_message', None)
+        
+        def patched_on_message(self, ws, message):
+            if original_on_message:
+                return original_on_message(self, message)
+            return None
+        
+        WebsocketClient.on_message = patched_on_message
+        logging.info("✅ Parches aplicados")
+        return True
+    except:
+        return False
+
+def safe_import_iqoption():
+    try:
+        patch_iqoptionapi()
+        from iqoptionapi.stable_api import IQ_Option
+        return IQ_Option, True
+    except Exception as e:
+        return None, False
+
+class SafeIQOption:
+    def __init__(self, email, password):
+        patch_iqoptionapi()
+        from iqoptionapi.stable_api import IQ_Option
+        self._iq_instance = IQ_Option(email, password)
+    
+    def connect(self):
+        websocket_logger = logging.getLogger('websocket')
+        iqapi_logger = logging.getLogger('iqoptionapi.ws.client')
+        original_level = websocket_logger.level
+        websocket_logger.setLevel(logging.CRITICAL)
+        iqapi_logger.setLevel(logging.CRITICAL)
+        try:
+            result = self._iq_instance.connect()
+            return result
+        finally:
+            websocket_logger.setLevel(original_level)
+    
+    def __getattr__(self, name):
+        return getattr(self._iq_instance, name)
+FIXEOF
 fi
 
 # Crear script de inicio mejorado
