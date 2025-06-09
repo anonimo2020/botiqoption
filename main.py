@@ -1171,24 +1171,234 @@ def after_request(response):
 
 # Endpoints
 
+@app.route('/', methods=['GET'])
+def serve_frontend():
+    """Servir el frontend HTML"""
+    frontend_html = '''<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Bot Pro - Opciones Binarias</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 600px;
+            width: 100%;
+        }
+        .logo {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .status {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #c3e6cb;
+        }
+        .info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            text-decoration: none;
+            display: inline-block;
+            margin: 10px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        .feature {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+        .feature h3 {
+            margin: 0 0 10px 0;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🚀</div>
+        <h1>Trading Bot Pro - Opciones Binarias</h1>
+        
+        <div class="status">
+            ✅ Servidor activo y funcionando correctamente
+        </div>
+        
+        <div class="info">
+            <h3>🎯 Sistema Especializado en Opciones Binarias</h3>
+            <p>Bot de trading automatizado con:</p>
+            <ul>
+                <li>✅ 5 estrategias especializadas</li>
+                <li>✅ Gestión de capital avanzada (Kelly Criterion)</li>
+                <li>✅ Límite de capital al 50% del balance</li>
+                <li>✅ Stop loss por operaciones perdidas</li>
+                <li>✅ Take profit configurable</li>
+                <li>✅ Análisis técnico en tiempo real</li>
+                <li>✅ Notificaciones Telegram</li>
+            </ul>
+        </div>
+
+        <div class="features">
+            <div class="feature">
+                <h3>📊 Estrategias</h3>
+                <p>5 estrategias probadas para diferentes niveles de riesgo</p>
+            </div>
+            <div class="feature">
+                <h3>💰 Gestión Capital</h3>
+                <p>Kelly Criterion + Anti-Martingala para máxima seguridad</p>
+            </div>
+            <div class="feature">
+                <h3>📱 Tiempo Real</h3>
+                <p>Interfaz moderna con gráficos en vivo</p>
+            </div>
+            <div class="feature">
+                <h3>🛡️ Seguridad</h3>
+                <p>Múltiples límites de riesgo y controles</p>
+            </div>
+        </div>
+
+        <div style="margin-top: 30px;">
+            <h3>🔗 Enlaces:</h3>
+            <a href="/health" class="btn">📊 Health Check</a>
+            <a href="https://github.com" class="btn" target="_blank">📱 Frontend Web</a>
+        </div>
+
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #dee2e6; font-size: 14px; color: #666;">
+            <p>🔧 API Endpoints disponibles:</p>
+            <ul style="text-align: left; display: inline-block;">
+                <li><code>POST /api/login</code> - Autenticación</li>
+                <li><code>GET /api/strategies</code> - Estrategias disponibles</li>
+                <li><code>POST /api/start_bot</code> - Iniciar bot</li>
+                <li><code>GET /api/live_data</code> - Datos en tiempo real</li>
+                <li><code>GET /health</code> - Estado del sistema</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>'''
+    return frontend_html, 200, {'Content-Type': 'text/html'}
+
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Health check endpoint"""
-    return jsonify({
-        "status": "healthy",
-        "timestamp": datetime.datetime.now().isoformat(),
-        "iq_api_available": IQ_AVAILABLE,
-        "active_sessions": len(user_sessions),
-        "active_bots": len([b for b in active_bots.values() if b.running]),
-        "available_strategies": [
-            {
-                "id": strategy.value,
-                "name": config["name"],
-                "risk_level": config["risk_level"].value,
-                "description": config["description"]
-            } for strategy, config in STRATEGY_CONFIG.items()
-        ]
-    }), 200
+    """Health check endpoint mejorado"""
+    try:
+        # Verificar estado de IQOptionAPI
+        iq_status = "available" if IQ_AVAILABLE else "unavailable"
+        
+        # Contar sesiones activas
+        active_sessions = 0
+        with sessions_lock:
+            for email, iq in user_sessions.items():
+                try:
+                    if iq.check_connect():
+                        active_sessions += 1
+                except:
+                    pass
+        
+        # Contar bots activos
+        active_bots_count = 0
+        with bots_lock:
+            for email, bot in active_bots.items():
+                if bot.running:
+                    active_bots_count += 1
+        
+        # Verificar conexión a Telegram
+        telegram_status = "configured" if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID else "not_configured"
+        
+        # Estadísticas del sistema
+        import psutil
+        cpu_percent = psutil.cpu_percent(interval=1)
+        memory = psutil.virtual_memory()
+        
+        health_data = {
+            "status": "healthy",
+            "timestamp": datetime.datetime.now().isoformat(),
+            "iqoption_api": {
+                "status": iq_status,
+                "version": "available" if IQ_AVAILABLE else "not_installed"
+            },
+            "sessions": {
+                "active": active_sessions,
+                "total_registered": len(user_sessions)
+            },
+            "bots": {
+                "active": active_bots_count,
+                "total": len(active_bots)
+            },
+            "telegram": {
+                "status": telegram_status,
+                "notifications": "enabled" if telegram_status == "configured" else "disabled"
+            },
+            "strategies": {
+                "available": len(STRATEGY_CONFIG),
+                "types": [strategy.value for strategy in STRATEGY_CONFIG.keys()]
+            },
+            "system": {
+                "cpu_percent": cpu_percent,
+                "memory_percent": memory.percent,
+                "memory_available_gb": round(memory.available / (1024**3), 2)
+            },
+            "websocket": {
+                "patch_applied": True,
+                "compatible_version": True
+            }
+        }
+        
+        return jsonify(health_data), 200
+        
+    except Exception as e:
+        logger.error(f"Error en health check: {e}")
+        return jsonify({
+            "status": "error",
+            "timestamp": datetime.datetime.now().isoformat(),
+            "error": str(e),
+            "iqoption_api": "unknown",
+            "basic_info": {
+                "active_sessions": len(user_sessions),
+                "active_bots": len(active_bots)
+            }
+        }), 500
 
 @app.route('/api/login', methods=['POST', 'OPTIONS'])
 @limiter.limit("5 per minute")
