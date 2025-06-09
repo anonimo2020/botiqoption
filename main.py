@@ -1193,7 +1193,7 @@ def health_check():
 @app.route('/api/login', methods=['POST', 'OPTIONS'])
 @limiter.limit("5 per minute")
 def login():
-    """Login endpoint"""
+    """Login endpoint con manejo mejorado de conexiones"""
     if request.method == 'OPTIONS':
         return '', 204
     
@@ -1210,75 +1210,199 @@ def login():
         
         logger.info(f"Intento de login para: {email}")
         
-        # Limpiar sesión anterior
+        # Limpiar cualquier sesión anterior
         with sessions_lock:
             if email in user_sessions:
                 try:
-                    user_sessions[email].close_websocket()
-                except:
-                    pass
-                del user_sessions[email]
+                    old_iq = user_sessions[email]
+                    if hasattr(old_iq, 'websocket_client') and old_iq.websocket_client:
+                        try:
+                            old_iq.websocket_client.close()
+                        except:
+                            pass
+                    if hasattr(old_iq, 'close_websocket'):
+                        try:
+                            old_iq.close_websocket()
+                        except:
+                            pass
+                except Exception as e:
+                    logger.debug(f"Error limpiando sesión anterior: {e}")
+                finally:
+                    del user_sessions[email]
         
-        # Crear nueva conexión IQ Option
-        iq = IQ_Option(email, password)
+        # Esperar un momento para asegurar limpieza completa
+        time.sleep(0.5)
         
-        # Intentar conectar
-        logger.info("Conectando con IQ Option...")
-        check, reason = iq.connect()
-        
-        if not check:
-            logger.error(f"Error de conexión: {reason}")
-            
-            # Normalizar el motivo (reason)
-            if isinstance(reason, dict):
-                code = reason.get("code", "")
-                raw_msg = reason.get("message", "")
-            else:
+        # Función para intentar conexión con reintentos
+        def attempt_connection(max_retries=3):
+            for attempt in range(max_retries):
                 try:
-                    parsed = json.loads(reason)
-                    code = parsed.get("code", "")
-                    raw_msg = parsed.get("message", "")
-                except Exception:
-                    code = str(reason)
-                    raw_msg = str(reason)
+                    logger.info(f"Intento de conexión {attempt + 1}/{max_retries}")
+                    
+                    # Crear nueva instancia IQ Option
+                    iq = IQ_Option(email, password)
+                    
+                    # Configurar timeouts más largos
+                    if hasattr(iq, 'api') and hasattr(iq.api, 'websocket_client'):
+                        try:
+                            iq.api.websocket_client.timeout = 30
+                        except:
+                            pass
+                    
+                    # Intentar conectar con timeout
+                    logger.info("Conectando con IQ Option...")
+                    
+                    # Usar threading para timeout de conexión
+                    connection_result = {'check': False, 'reason': 'Timeout'}
+                    connection_event = Event()
+                    
+                    def connect_thread():
+                        try:
+                            check, reason = iq.connect()
+                            connection_result['check'] = check
+                            connection_result['reason'] = reason
+                            connection_event.set()
+                        except Exception as e:
+                            connection_result['check'] = False
+                            connection_result['reason'] = str(e)
+                            connection_event.set()
+                    
+                    # Ejecutar conexión en thread separado
+                    connect_worker = Thread(target=connect_thread, daemon=True)
+                    connect_worker.start()
+                    
+                    # Esperar con timeout
+                    if connection_event.wait(timeout=30):
+                        check = connection_result['check']
+                        reason = connection_result['reason']
+                    else:
+                        # Timeout
+                        logger.warning(f"Timeout en conexión (intento {attempt + 1})")
+                        try:
+                            iq.close_websocket()
+                        except:
+                            pass
+                        if attempt < max_retries - 1:
+                            time.sleep(2)  # Esperar antes del siguiente intento
+                            continue
+                        else:
+                            return False, "Timeout de conexión. Servidor sobrecargado, intenta más tarde."
+                    
+                    if not check:
+                        logger.error(f"Error de conexión (intento {attempt + 1}): {reason}")
+                        
+                        # Limpiar conexión fallida
+                        try:
+                            iq.close_websocket()
+                        except:
+                            pass
+                        
+                        # Analizar el tipo de error
+                        if isinstance(reason, dict):
+                            code = reason.get("code", "")
+                            raw_msg = reason.get("message", "")
+                        else:
+                            try:
+                                parsed = json.loads(str(reason))
+                                code = parsed.get("code", "")
+                                raw_msg = parsed.get("message", "")
+                            except:
+                                code = str(reason)
+                                raw_msg = str(reason)
+                        
+                        # Errores que no requieren reintentos
+                        if code == "2FA":
+                            return False, {
+                                "message": "Autenticación de dos factores requerida",
+                                "code": "2FA_REQUIRED"
+                            }
+                        elif code == "invalid_credentials" or "wrong credentials" in raw_msg.lower():
+                            return False, {
+                                "message": "Correo o contraseña incorrecta",
+                                "code": "INVALID_CREDENTIALS"
+                            }
+                        
+                        # Errores de conexión que pueden reintentarse
+                        if "connection" in raw_msg.lower() or "closed" in raw_msg.lower():
+                            if attempt < max_retries - 1:
+                                logger.info(f"Error de conexión, reintentando en 2 segundos...")
+                                time.sleep(2)
+                                continue
+                        
+                        # Si es el último intento, devolver error
+                        if attempt == max_retries - 1:
+                            return False, f"Error de conexión después de {max_retries} intentos: {raw_msg}"
+                    
+                    # Verificar que la conexión esté realmente establecida
+                    time.sleep(1)  # Dar tiempo para que se establezca
+                    
+                    if not iq.check_connect():
+                        logger.warning(f"Conexión no verificada (intento {attempt + 1})")
+                        try:
+                            iq.close_websocket()
+                        except:
+                            pass
+                        
+                        if attempt < max_retries - 1:
+                            time.sleep(2)
+                            continue
+                        else:
+                            return False, "No se pudo establecer conexión estable"
+                    
+                    # Conexión exitosa
+                    logger.info("Conexión establecida correctamente")
+                    return True, iq
+                    
+                except Exception as e:
+                    logger.error(f"Excepción en intento {attempt + 1}: {str(e)}")
+                    if "Connection is already closed" in str(e):
+                        if attempt < max_retries - 1:
+                            logger.info("Conexión cerrada, reintentando...")
+                            time.sleep(2)
+                            continue
+                    
+                    if attempt == max_retries - 1:
+                        return False, f"Error de conexión: {str(e)}"
             
-            if code == "2FA":
-                return jsonify({
-                    "success": False,
-                    "message": "Autenticación de dos factores requerida",
-                    "code": "2FA_REQUIRED"
-                }), 401
-            
-            elif code == "invalid_credentials":
-                return jsonify({
-                    "success": False,
-                    "message": "Correo o contraseña incorrecta",
-                    "code": "INVALID_CREDENTIALS"
-                }), 401
-            
-            # cualquier otro error
-            return jsonify({
-                "success": False,
-                "message": f"Error de conexión: {raw_msg}"
-            }), 503
+            return False, "No se pudo establecer conexión después de múltiples intentos"
         
-        # Verificar conexión establecida
-        if not iq.check_connect():
-            return jsonify({
-                "success": False,
-                "message": "Correo o contraseña incorrecta"
-            }), 401
+        # Intentar conexión con reintentos
+        success, result = attempt_connection()
+        
+        if not success:
+            if isinstance(result, dict):
+                return jsonify({"success": False, **result}), 401
+            else:
+                return jsonify({"success": False, "message": result}), 503
+        
+        # result contiene la instancia IQ_Option conectada
+        iq = result
         
         # Obtener información del usuario
         try:
-            user_email = iq.email if hasattr(iq, 'email') else email
+            user_email = email
             user_name = user_email.split('@')[0].title()
             
-            # Obtener balance y tipo de cuenta
-            balance = iq.get_balance()
-            account_type = iq.get_balance_mode()
+            # Obtener balance y tipo de cuenta con reintentos
+            balance = None
+            account_type = None
             
-            # Guardar sesión
+            for balance_attempt in range(3):
+                try:
+                    balance = iq.get_balance()
+                    account_type = iq.get_balance_mode()
+                    if balance is not None:
+                        break
+                except Exception as e:
+                    logger.warning(f"Error obteniendo balance (intento {balance_attempt + 1}): {e}")
+                    if balance_attempt < 2:
+                        time.sleep(1)
+                    else:
+                        # Usar valores por defecto si no se puede obtener
+                        balance = 0.0
+                        account_type = "PRACTICE"
+            
+            # Guardar sesión exitosa
             with sessions_lock:
                 user_sessions[email] = iq
             
@@ -1309,16 +1433,18 @@ def login():
                     "account_type": account_type,
                     "currency": "USD"
                 },
-                "message": "Login exitoso"
+                "message": "Conexión exitosa con IQ Option"
             }), 200
             
         except Exception as e:
             logger.error(f"Error obteniendo datos del usuario: {e}")
+            
             # Si hay error pero la conexión está establecida, devolver datos mínimos
             with sessions_lock:
                 user_sessions[email] = iq
             
             session['user_email'] = email
+            session.permanent = True
             
             return jsonify({
                 "success": True,
@@ -1329,7 +1455,7 @@ def login():
                     "account_type": "PRACTICE",
                     "currency": "USD"
                 },
-                "message": "Login exitoso (datos limitados)"
+                "message": "Conexión exitosa (datos limitados)"
             }), 200
             
     except Exception as e:
