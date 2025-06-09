@@ -41,7 +41,9 @@ app = Flask(__name__)
 app.config['SESSION_TYPE'] = 'filesystem'
 Session(app)
 CORS(app)
-limiter = Limiter(app, key_func=get_remote_address)
+# Inicializar Limiter sin pasar app como positional para evitar conflicto
+limiter = Limiter(key_func=get_remote_address)
+limiter.init_app(app)
 
 # ------------------------------
 # Global State
@@ -76,12 +78,8 @@ STRATEGY_RISK = {
 # Utilitarios
 # ------------------------------
 def get_indicators(iq, symbol):
-    # Obtener indicadores técnicos para estrategia
-    # Ejemplo placeholder: retornar dict con arrays numpy
-    # Usuario adapta cálculos reales según API
     data = iq.get_candles(symbol, 300, 100, time.time())
     closes = np.array([candle['close'] for candle in data])
-    # ... calcular EMA, MACD, RSI, Bollinger, Stochastic
     return {
         'closes': closes,
         'ema_fast': np.mean(closes[-5:]),
@@ -96,14 +94,13 @@ def get_indicators(iq, symbol):
 
 def get_signal_by_risk(indicators, risk_level):
     strat = STRATEGY_RISK[risk_level]
-    thresh = strat['threshold']
-    # Trend Following (low riesgo)
+    # Trend Following (low)
     if risk_level == 'low':
         if indicators['ema_fast'] > indicators['ema_slow'] and indicators['macd'] > 0:
             return 'call', 0.9
         else:
             return 'put', 0.9
-    # Bollinger Reversal (medio)
+    # Bollinger Reversal (medium)
     if risk_level == 'medium':
         if indicators['closes'][-1] > indicators['bb_upper'] and indicators['rsi'] > 70:
             return 'put', 0.7
@@ -111,7 +108,7 @@ def get_signal_by_risk(indicators, risk_level):
             return 'call', 0.7
         else:
             return None, 0
-    # Stochastic Scalping (alto)
+    # Stochastic Scalping (high)
     if risk_level == 'high':
         if indicators['stoch'] < 20:
             return 'call', 0.5
@@ -121,7 +118,7 @@ def get_signal_by_risk(indicators, risk_level):
             return None, 0
 
 # ------------------------------
-# Decoradores y Endpoints
+# Endpoints
 # ------------------------------
 @app.route('/api/login', methods=['POST'])
 @limiter.limit('10 per minute')
@@ -145,22 +142,19 @@ def api_login():
         if not check:
             code = reason.get('code') if isinstance(reason, dict) else None
             if code == 'invalid_credentials':
-                return jsonify({ 'success': False, 'message': 'Correo o contraseña incorrecta' }), 401
-            return jsonify({ 'success': False, 'message': 'Error de conexión'}), 503
+                return jsonify({'success': False, 'message': 'Correo o contraseña incorrecta'}), 401
+            return jsonify({'success': False, 'message': 'Error de conexión'}), 503
         user_sessions[email] = iq
     return jsonify({'success': True}), 200
 
-
 @app.route('/api/symbols', methods=['GET'])
 def api_symbols():
-    # Solo turbo (binarias)
     with sessions_lock:
         if not user_sessions:
             return jsonify([]), 200
         iq = next(iter(user_sessions.values()))
         all_syms = iq.get_all_init_data()[0]['binary']
         return jsonify(all_syms), 200
-
 
 @app.route('/api/start_bot', methods=['POST'])
 def api_start_bot():
@@ -183,9 +177,9 @@ def api_start_bot():
                 inds = get_indicators(iq, symbol)
                 signal, conf = get_signal_by_risk(inds, risk)
                 if signal:
-                    iq.buy(amount, symbol, signal, 5)  # vencimiento 5 minutos
+                    iq.buy(amount, symbol, signal, 5)
                     logger.info(f"Trade: {signal} {symbol} 🕔5m conf={conf}")
-                time.sleep(30)  # espera corta
+                time.sleep(30)
             except Exception as e:
                 logger.error(f"Error en bot: {e}")
                 break
@@ -199,7 +193,6 @@ def api_start_bot():
 
     return jsonify({'success': True}), 200
 
-
 @app.route('/api/stop_bot', methods=['POST'])
 def api_stop_bot():
     data = request.get_json()
@@ -208,9 +201,7 @@ def api_stop_bot():
         th = active_bots.pop(email, None)
     if not th:
         return jsonify({'success': False, 'message': 'Bot no estaba activo'}), 404
-    # el hilo termina al romper bucle
     return jsonify({'success': True}), 200
-
 
 @app.route('/api/balance', methods=['GET'])
 def api_balance():
@@ -222,15 +213,16 @@ def api_balance():
     bal = iq.get_balance()
     return jsonify({'success': True, 'balance': bal}), 200
 
-
 @app.route('/health', methods=['GET'])
 def health_check():
     try:
-        # Simplified health
-        return jsonify({'status': 'healthy', 'time': datetime.datetime.now().isoformat()}), 200
+        health_data = {
+            'status': 'healthy',
+            'timestamp': datetime.datetime.now().isoformat()
+        }
+        return jsonify(health_data), 200
     except Exception as e:
         return jsonify({'status': 'error', 'error': str(e)}), 500
-
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
