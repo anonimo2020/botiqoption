@@ -1,4 +1,238 @@
-# main.py - Backend Mejorado para Bot de Trading Opciones Binarias Pro
+def require_auth(f):
+    """Decorador para requerir autenticación con reconexión automática"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_email' not in session:
+            return jsonify({"error": "No autorizado", "code": "AUTH_REQUIRED"}), 401
+        
+        email = session['user_email']
+        with sessions_lock:
+            if email not in user_sessions:
+                session.clear()
+                return jsonify({"error": "Sesión expirada", "code": "SESSION_EXPIRED"}), 401
+            
+            # Verificar conexión IQ Option con reintentos
+            iq = user_sessions[email]
+            
+            # Función para verificar y reconectar si es necesario
+            def ensure_connection(max_retries=2):
+                for attempt in range(max_retries):
+                    try:
+                        # Verificar conexión
+                        if iq.check_connect():
+                            return True
+                        
+                        logger.warning(f"Conexión perdida para {email}, reintentando... (intento {attempt + 1})")
+                        
+                        # Intentar reconectar
+                        time.sleep(1)  # Pequeña pausa
+                        
+                        # Crear thread para reconexión con timeout
+                        reconnect_result = {'success': False}
+                        reconnect_event = Event()
+                        
+                        def reconnect_thread():
+                            try:
+                                success = iq.connect()
+                                if isinstance(success, tuple):
+                                    reconnect_result['success'] = success[0]
+                                else:
+                                    reconnect_result['success'] = success
+                                reconnect_event.set()
+                            except Exception as e:
+                                logger.error(f"Error en reconexión: {e}")
+                                reconnect_result['success'] = False
+                                reconnect_event.set()
+                        
+                        # Ejecutar reconexión con timeout
+                        reconnect_worker = Thread(target=reconnect_thread, daemon=True)
+                        reconnect_worker.start()
+                        
+                        if reconnect_event.wait(timeout=15):
+                            if reconnect_result['success']:
+                                logger.info(f"Reconexión exitosa para {email}")
+                                return True
+                        else:
+                            logger.warning(f"Timeout en reconexión para {email}")
+                        
+                    except Exception as e:
+                        logger.error(f"Error verificando conexión para {email}: {e}")
+                
+                return False
+            
+            # Verificar/reconectar con reintentos
+            if not ensure_connection():
+                # Si no se pudo reconectar, limpiar sesión
+                logger.error(f"No se pudo restablecer conexión para {email}")
+                try:
+                    del user_sessions[email]
+                except:
+                    pass
+                session.clear()
+                return jsonify({"error": "Conexión perdida con IQ Option", "code": "CONNECTION_LOST"}), 401
+        
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Función para mantener conexiones activas
+def connection_keepalive():
+    """Mantiene las conexiones WebSocket activas"""
+    while True:
+        try:
+            time.sleep(30)  # Verificar cada 30 segundos
+            
+            with sessions_lock:
+                emails_to_remove = []
+                for email, iq in list(user_sessions.items()):
+                    try:
+                        # Ping básico para mantener conexión
+                        if not iq.check_connect():
+                            logger.warning(f"Conexión perdida detectada para {email}")
+                            emails_to_remove.append(email)
+                        else:
+                            # Enviar ping silencioso si es posible
+                            try:
+                                # Obtener timestamp del servidor como ping
+                                iq.get_server_timestamp()
+                            except:
+                                pass
+                    except Exception as e:
+                        logger.debug(f"Error en keepalive para {email}: {e}")
+                        emails_to_remove.append(email)
+                
+                # Limpiar conexiones muertas
+                for email in emails_to_remove:
+                    try:
+                        logger.info(f"Limpiando conexión muerta: {email}")
+                        del user_sessions[email]
+                    except:
+                        pass
+                        
+        except Exception as e:
+            logger.error(f"Error en connection keepalive: {e}")
+
+# Iniciar thread de keepalive
+keepalive_thread = Thread(target=connection_keepalive, daemon=True)
+keepalive_thread.start()
+
+# Función mejorada para limpiar sesiones inactivas
+def cleanup_inactive_sessions():
+    """Limpia sesiones inactivas cada hora con mejor detección"""
+    while True:
+        time.sleep(3600)  # Cada hora
+        try:
+            logger.info("🧹 Iniciando limpieza de sesiones...")
+            cleaned_count = 0
+            
+            with sessions_lock:
+                emails_to_clean = []
+                
+                for email, iq in list(user_sessions.items()):
+                    try:
+                        # Verificar múltiples condiciones de sesión muerta
+                        is_dead = False
+                        
+                        # 1. Verificar conexión básica
+                        if not iq.check_connect():
+                            is_dead = True
+                            logger.debug(f"Sesión {email}: conexión cerrada")
+                        
+                        # 2. Verificar si WebSocket está activo
+                        if hasattr(iq, 'websocket_client') and iq.websocket_client:
+                            try:
+                                ws = iq.websocket_client
+                                if hasattr(ws, 'wss') and ws.wss:
+                                    if not hasattr(ws.wss, 'sock') or not ws.wss.sock:
+                                        is_dead = True
+                                        logger.debug(f"Sesión {email}: WebSocket sin socket")
+                            except:
+                                is_dead = True
+                                logger.debug(f"Sesión {email}: Error verificando WebSocket")
+                        
+                        # 3. Test de comunicación
+                        if not is_dead:
+                            try:
+                                # Intentar operación simple para verificar comunicación
+                                balance = iq.get_balance()
+                                if balance is None:
+                                    is_dead = True
+                                    logger.debug(f"Sesión {email}: no responde a get_balance")
+                            except Exception as e:
+                                is_dead = True
+                                logger.debug(f"Sesión {email}: error en test de comunicación: {e}")
+                        
+                        if is_dead:
+                            emails_to_clean.append(email)
+                    
+                    except Exception as e:
+                        logger.warning(f"Error verificando sesión {email}: {e}")
+                        emails_to_clean.append(email)
+                
+                # Limpiar sesiones muertas
+                for email in emails_to_clean:
+                    try:
+                        iq = user_sessions[email]
+                        try:
+                            iq.close_websocket()
+                        except:
+                            pass
+                        del user_sessions[email]
+                        cleaned_count += 1
+                        logger.info(f"🗑️ Sesión limpiada: {email}")
+                    except:
+                        pass
+            
+            if cleaned_count > 0:
+                logger.info(f"✅ Limpieza completada: {cleaned_count} sesiones eliminadas")
+            else:
+                logger.debug("✅ Limpieza completada: no se encontraron sesiones muertas")
+                
+        except Exception as e:
+            logger.error(f"Error en limpieza de sesiones: {e}")
+
+# Reemplazar el thread de limpieza anterior
+cleanup_thread = Thread(target=cleanup_inactive_sessions, daemon=True)
+cleanup_thread.start()
+
+# Función para manejar desconexiones gracefully
+def graceful_shutdown():
+    """Cierra todas las conexiones de forma ordenada"""
+    logger.info("🛑 Iniciando cierre ordenado del sistema...")
+    
+    # Detener todos los bots activos
+    with bots_lock:
+        for email, bot in list(active_bots.items()):
+            try:
+                logger.info(f"Deteniendo bot para {email}")
+                bot.stop()
+            except Exception as e:
+                logger.error(f"Error deteniendo bot {email}: {e}")
+        active_bots.clear()
+    
+    # Cerrar todas las sesiones de IQ Option
+    with sessions_lock:
+        for email, iq in list(user_sessions.items()):
+            try:
+                logger.info(f"Cerrando sesión para {email}")
+                iq.close_websocket()
+            except Exception as e:
+                logger.error(f"Error cerrando sesión {email}: {e}")
+        user_sessions.clear()
+    
+    logger.info("✅ Cierre ordenado completado")
+
+# Registrar handler para cierre ordenado
+import signal
+import atexit
+
+def signal_handler(signum, frame):
+    logger.info(f"Señal {signum} recibida, iniciando cierre ordenado...")
+    graceful_shutdown()
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)
+atexit.register(graceful_shutdown)# main.py - Backend Mejorado para Bot de Trading Opciones Binarias Pro
 
 import os
 import sys
