@@ -124,6 +124,7 @@ pytz==2023.3
 websocket-client==1.1.0
 certifi==2023.7.22
 urllib3==2.0.7
+psutil==5.9.5
 git+https://github.com/Lu-Yi-Hsun/iqoptionapi.git
 EOF
 
