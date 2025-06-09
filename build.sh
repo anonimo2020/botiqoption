@@ -61,7 +61,8 @@ pip install --no-cache-dir \
     python-dateutil==2.8.2 \
     pytz==2023.3 \
     certifi==2023.7.22 \
-    urllib3==2.0.7
+    urllib3==2.0.7 \
+    psutil==5.9.5
 
 # Verificar instalaciones críticas
 echo "✅ Verificando instalaciones críticas..."
