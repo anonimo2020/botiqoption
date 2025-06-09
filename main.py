@@ -245,6 +245,8 @@ from functools import wraps
 from threading import Thread, Lock, Event
 import json
 import math
+import signal
+import atexit
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 from enum import Enum
@@ -1581,10 +1583,35 @@ def health_check():
         telegram_status = "configured" if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID else "not_configured"
         
         # Estadísticas del sistema
-        import psutil
-        cpu_percent = psutil.cpu_percent(interval=1)
-        memory = psutil.virtual_memory()
+        try:
+            import psutil
+            cpu_percent = psutil.cpu_percent(interval=1)
+            memory = psutil.virtual_memory()
+            system_stats = {
+                "cpu_percent": cpu_percent,
+                "memory_percent": memory.percent,
+                "memory_available_gb": round(memory.available / (1024**3), 2)
+            }
+        except ImportError:
+            system_stats = {
+                "cpu_percent": "N/A",
+                "memory_percent": "N/A", 
+                "memory_available_gb": "N/A",
+                "note": "psutil not available"
+            }
         
+        return jsonify(health_data), 200
+        
+    except Exception as e:
+        logger.error(f"Error en health check: {e}")
+        return jsonify({
+            "status": "error",
+            "timestamp": datetime.datetime.now().isoformat(),
+            "error": str(e),
+            "iqoption_api": "unknown",
+            "basic_info": {
+                "active_sessions": len(user_sessions),
+                "active_bots": len(active_bots)
         health_data = {
             "status": "healthy",
             "timestamp": datetime.datetime.now().isoformat(),
@@ -1608,29 +1635,10 @@ def health_check():
                 "available": len(STRATEGY_CONFIG),
                 "types": [strategy.value for strategy in STRATEGY_CONFIG.keys()]
             },
-            "system": {
-                "cpu_percent": cpu_percent,
-                "memory_percent": memory.percent,
-                "memory_available_gb": round(memory.available / (1024**3), 2)
-            },
+            "system": system_stats,
             "websocket": {
                 "patch_applied": True,
                 "compatible_version": True
-            }
-        }
-        
-        return jsonify(health_data), 200
-        
-    except Exception as e:
-        logger.error(f"Error en health check: {e}")
-        return jsonify({
-            "status": "error",
-            "timestamp": datetime.datetime.now().isoformat(),
-            "error": str(e),
-            "iqoption_api": "unknown",
-            "basic_info": {
-                "active_sessions": len(user_sessions),
-                "active_bots": len(active_bots)
             }
         }), 500
 
