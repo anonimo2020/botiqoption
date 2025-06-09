@@ -110,6 +110,8 @@ def connection_keepalive():
                         
         except Exception as e:
             logger.error(f"Error en connection keepalive: {e}")
+            from threading import Thread, Lock, Event
+
 
 # Iniciar thread de keepalive
 keepalive_thread = Thread(target=connection_keepalive, daemon=True)
