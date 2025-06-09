@@ -1,3 +1,4 @@
+from threading import Thread, Lock, Event
 def require_auth(f):
     """Decorador para requerir autenticación con reconexión automática"""
     @wraps(f)
