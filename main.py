@@ -1612,6 +1612,8 @@ def health_check():
             "basic_info": {
                 "active_sessions": len(user_sessions),
                 "active_bots": len(active_bots)
+            }
+        }), 500
         health_data = {
             "status": "healthy",
             "timestamp": datetime.datetime.now().isoformat(),
@@ -1640,7 +1642,8 @@ def health_check():
                 "patch_applied": True,
                 "compatible_version": True
             }
-        }), 500
+        }
+
 
 @app.route('/api/login', methods=['POST', 'OPTIONS'])
 @limiter.limit("5 per minute")
