@@ -9,7 +9,7 @@ Flask-Limiter==3.5.0
 
 # HTTP & WebSocket - Versión específica compatible
 requests==2.31.0
-websocket-client==1.3.3
+websocket-client==0.52.0
 
 # Data & Math - Versiones compatibles con Python 3.10
 numpy==1.25.2
