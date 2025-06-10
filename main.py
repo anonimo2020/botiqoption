@@ -2692,46 +2692,55 @@ Thread(target=reset_daily_limits, daemon=True).start()
 # MAIN - PUNTO DE ENTRADA
 # ============================================================================
 
+# Para producción, este bloque solo muestra información
+# El servidor real se ejecuta con Gunicorn
+port = int(os.environ.get('PORT', 5000))
+
+logger.info("=" * 70)
+logger.info("🎯 BOT PROFESIONAL DE OPCIONES BINARIAS - IQ OPTION V2.0")
+logger.info("=" * 70)
+logger.info(f"📍 Puerto: {port}")
+logger.info(f"🌐 Frontend: {FRONTEND_DOMAINS[0]}")
+logger.info(f"🔧 Modo: {'REAL' if IQ_AVAILABLE else 'SIMULACIÓN'}")
+logger.info(f"📱 Telegram: {'✅ Configurado' if TELEGRAM_BOT_TOKEN else '❌ No configurado'}")
+logger.info(f"📊 Estrategias disponibles: {len(STRATEGY_CONFIG)}")
+logger.info(f"💰 Métodos de gestión de dinero: {len(MoneyManagement)}")
+logger.info(f"⚠️ Niveles de riesgo: {len(RiskLevel)}")
+logger.info("")
+logger.info("✨ CARACTERÍSTICAS PRINCIPALES:")
+logger.info("   • 10 estrategias profesionales de trading")
+logger.info("   • Análisis técnico en tiempo real")
+logger.info("   • WebSocket para datos en vivo y gráficos")
+logger.info("   • 6 métodos de gestión monetaria")
+logger.info("   • 4 niveles de riesgo configurables")
+logger.info("   • Límites automáticos (pérdidas/ganancias/diario)")
+logger.info("   • Notificaciones Telegram en tiempo real")
+logger.info("   • API REST completa + WebSocket")
+logger.info("   • Interfaz para gráficos de velas en tiempo real")
+logger.info("=" * 70)
+
+if not IQ_AVAILABLE:
+    logger.warning("⚠️ MODO SIMULACIÓN ACTIVO")
+    logger.info("Para activar trading real:")
+    logger.info("pip install git+https://github.com/Lu-Yi-Hsun/iqoptionapi.git")
+
+# Notificar inicio
+send_telegram_message(
+    f"🚀 *BACKEND INICIADO*\n"
+    f"🔧 Versión: 2.0.0\n"
+    f"📍 Puerto: {port}\n"
+    f"💻 Modo: {'REAL' if IQ_AVAILABLE else 'SIMULACIÓN'}\n"
+    f"📊 Estrategias: {len(STRATEGY_CONFIG)}\n"
+    f"⏰ {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+)
+
+# Solo ejecutar el servidor de desarrollo si no estamos en producción
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    
-    logger.info("=" * 70)
-    logger.info("🎯 BOT PROFESIONAL DE OPCIONES BINARIAS - IQ OPTION V2.0")
-    logger.info("=" * 70)
-    logger.info(f"📍 Puerto: {port}")
-    logger.info(f"🌐 Frontend: {FRONTEND_DOMAINS[0]}")
-    logger.info(f"🔧 Modo: {'REAL' if IQ_AVAILABLE else 'SIMULACIÓN'}")
-    logger.info(f"📱 Telegram: {'✅ Configurado' if TELEGRAM_BOT_TOKEN else '❌ No configurado'}")
-    logger.info(f"📊 Estrategias disponibles: {len(STRATEGY_CONFIG)}")
-    logger.info(f"💰 Métodos de gestión de dinero: {len(MoneyManagement)}")
-    logger.info(f"⚠️ Niveles de riesgo: {len(RiskLevel)}")
-    logger.info("")
-    logger.info("✨ CARACTERÍSTICAS PRINCIPALES:")
-    logger.info("   • 10 estrategias profesionales de trading")
-    logger.info("   • Análisis técnico en tiempo real")
-    logger.info("   • WebSocket para datos en vivo y gráficos")
-    logger.info("   • 6 métodos de gestión monetaria")
-    logger.info("   • 4 niveles de riesgo configurables")
-    logger.info("   • Límites automáticos (pérdidas/ganancias/diario)")
-    logger.info("   • Notificaciones Telegram en tiempo real")
-    logger.info("   • API REST completa + WebSocket")
-    logger.info("   • Interfaz para gráficos de velas en tiempo real")
-    logger.info("=" * 70)
-    
-    if not IQ_AVAILABLE:
-        logger.warning("⚠️ MODO SIMULACIÓN ACTIVO")
-        logger.info("Para activar trading real:")
-        logger.info("pip install git+https://github.com/Lu-Yi-Hsun/iqoptionapi.git")
-    
-    # Notificar inicio
-    send_telegram_message(
-        f"🚀 *BACKEND INICIADO*\n"
-        f"🔧 Versión: 2.0.0\n"
-        f"📍 Puerto: {port}\n"
-        f"💻 Modo: {'REAL' if IQ_AVAILABLE else 'SIMULACIÓN'}\n"
-        f"📊 Estrategias: {len(STRATEGY_CONFIG)}\n"
-        f"⏰ {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-    )
-    
-    # Iniciar servidor con SocketIO
-    socketio.run(app, host='0.0.0.0', port=port, debug=False)
+    # Detectar si estamos en Render
+    if os.environ.get('RENDER'):
+        # En producción, Gunicorn maneja el servidor
+        logger.info("🚀 Ejecutando en modo producción con Gunicorn")
+    else:
+        # En desarrollo, usar el servidor de Flask-SocketIO
+        logger.info("🔧 Ejecutando en modo desarrollo")
+        socketio.run(app, host='0.0.0.0', port=port, debug=True)
