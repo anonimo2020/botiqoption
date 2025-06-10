@@ -36,7 +36,7 @@ services:
     region: oregon
     plan: starter
     buildCommand: "./build.sh"
-    startCommand: "gunicorn main:app -c gunicorn.conf.py"
+    startCommand: "./run.sh"
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.18
