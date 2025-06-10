@@ -6,10 +6,16 @@ gunicorn==21.2.0
 Flask-CORS==4.0.0
 Flask-Session==0.5.0
 Flask-Limiter==3.5.0
+Flask-SocketIO==5.3.4
 
 # HTTP & WebSocket - Versión específica compatible
 requests==2.31.0
 websocket-client==0.52.0
+
+# SocketIO dependencies
+python-socketio==5.9.0
+python-engineio==4.7.1
+eventlet==0.33.3
 
 # Data & Math - Versiones compatibles con Python 3.10
 numpy==1.25.2
@@ -22,10 +28,16 @@ pytz==2023.3
 # Security
 cryptography==41.0.4
 
+# Redis for session/limiter storage (opcional pero recomendado)
+redis==5.0.0
+
 # Performance (opcional, se puede comentar si da problemas)
 # gevent==23.7.0
 
 # System monitoring
 psutil==5.9.5
+
+# Additional utilities for the bot
+dataclasses-json==0.6.1
 
 # IQ Option API será instalada via Git en build.sh
