@@ -1,5 +1,6 @@
 message += f"🎯 Win Rate: {self.session.win_rate:.1f}%\n"
-        message += f"💰 Profit: {'+'if self.session.total_profit >= 0 else ''}${self.session.total_profit:.2f}\n"
+        profit_sign = '+' if self.session.total_profit >= 0 else ''
+        message += f"💰 Profit: {profit_sign}${self.session.total_profit:.2f}\n"
         message += f"💵 Balance Final: ${self.session.current_balance:.2f}\n"
         message += f"📉 Max Drawdown: {self.session.max_drawdown:.1f}%\n"
         message += f"🔥 Rachas: {self.session.max_consecutive_wins}W / {self.session.max_consecutive_losses}L"
@@ -2747,7 +2748,8 @@ class AdvancedBinaryBot:
         message += f"📍 Precio: {trade.entry_price:.5f}\n"
         
         if status == "CERRADO" and trade.profit is not None:
-            message += f"💵 Resultado: {'+'if trade.profit >= 0 else ''}${trade.profit:.2f}\n"
+            profit_sign = '+' if trade.profit >= 0 else ''
+            message += f"💵 Resultado: {profit_sign}${trade.profit:.2f}\n"
             message += f"📊 Balance: ${self.session.current_balance:.2f}\n"
             message += f"🎯 Win Rate: {self.session.win_rate:.1f}%"
         
