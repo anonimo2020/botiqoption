@@ -1,4 +1,3 @@
-# render.yaml - Configuración simplificada y corregida para Render
 services:
   - type: web
     name: botiqoption-4
