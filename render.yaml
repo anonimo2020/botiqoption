@@ -1,12 +1,12 @@
-# render.yaml - Configuración para Render
+# render.yaml - Configuración simplificada y corregida para Render
 services:
   - type: web
-    name: trading-bot-opciones-binarias-pro
+    name: botiqoption-4
     env: python
     region: oregon
-    plan: starter
-    buildCommand: "./build.sh"
-    startCommand: "python main.py"
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:$PORT main:application"
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
@@ -16,61 +16,9 @@ services:
       - key: FLASK_SECRET_KEY
         generateValue: true
       - key: TELEGRAM_BOT_TOKEN
-        sync: false
+        value: "7787754995:AAEvM36bO9B4SvGA1cr1VP1j-Rx6on5LrjM"
       - key: TELEGRAM_CHAT_ID
-        sync: false
-      - key: PORT
-        value: 10000
-    disk:
-      name: trading-bot-storage
-      mountPath: /tmp
-      sizeGB: 1
+        value: "7009100334"
+      - key: RENDER
+        value: "true"
     autoDeploy: true
-    branch: main
-    repo: https://github.com/tu-usuario/trading-bot-opciones-binarias-pro
-    
-  # Opcional: Worker para tareas en background
-  - type: worker
-    name: trading-bot-worker
-    env: python
-    region: oregon
-    plan: starter
-    buildCommand: "./build.sh"
-    startCommand: "./run.sh"
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.9.18
-      - key: FLASK_SECRET_KEY
-        fromService:
-          type: web
-          name: trading-bot-opciones-binarias-pro
-          envVarKey: FLASK_SECRET_KEY
-      - key: TELEGRAM_BOT_TOKEN
-        sync: false
-      - key: TELEGRAM_CHAT_ID
-        sync: false
-    repo: https://github.com/tu-usuario/trading-bot-opciones-binarias-pro
-    branch: main
-    autoDeploy: true
-
-# Configuración de base de datos (opcional para métricas persistentes)
-databases:
-  - name: trading-bot-redis
-    plan: starter
-    type: redis
-    region: oregon
-    
-# Variables de entorno globales
-envVarGroups:
-  - name: trading-bot-config
-    envVars:
-      - key: MAX_WORKERS
-        value: 4
-      - key: TIMEOUT
-        value: 120
-      - key: LOG_LEVEL
-        value: INFO
-      - key: SESSION_TIMEOUT
-        value: 86400
-      - key: MAX_CONCURRENT_BOTS
-        value: 10
