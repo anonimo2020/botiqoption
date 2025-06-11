@@ -1,15 +1,8 @@
-    # main.py (módulo, sin def/​class)
-    message = ""
-    message += f"🎯 Win Rate: {self.session.win_rate:.1f}%\n"
-    profit_sign = '+' if self.session.total_profit >= 0 else ''
-    message += f"💰 Profit: {profit_sign}${self.session.total_profit:.2f}\n"
-    message += f"💵 Balance Final: ${self.session.current_balance:.2f}\n"
-    message += f"📉 Max Drawdown: {self.session.max_drawdown:.1f}%\n"
-    message += f"🔥 Rachas: {self.session.max_consecutive_wins}W / {self.session.max_consecutive_losses}L"
-    self._send_telegram_notification(message)
-    
-        # … sigue el resto del método …
-
+message += f"💵 Balance Final: ${self.session.current_balance:.2f}\n"
+        message += f"📉 Max Drawdown: {self.session.max_drawdown:.1f}%\n"
+        message += f"🔥 Rachas: {self.session.max_consecutive_wins}W / {self.session.max_consecutive_losses}L"
+        
+        self._send_telegram_notification(message)
     
     def get_status(self) -> Dict[str, Any]:
         """Obtiene el estado actual del bot"""
@@ -756,87 +749,6 @@ def stop_bot():
                 
                 return jsonify({
                     "success": True,
-                    "message": "Bot detenido exitosamente",
-                    "final_stats": status['session']
-                }), 200
-            else:
-                return jsonify({
-                    "success": False,
-                    "message": "No hay bot activo"
-                }), 404
-                
-    except Exception as e:
-        logger.error(f"Error deteniendo bot: {e}")
-        return jsonify({
-            "success": False,
-            "message": f"Error: {str(e)}"
-        }), 500
-
-@app.route('/api/bot_status', methods=['GET'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-@require_auth
-def bot_status():
-    """Obtener estado del bot"""
-    try:
-        email = session['user_email']
-        
-        with bots_lock:
-            if email in active_bots and active_bots[email].running:
-                bot = active_bots[email]
-                return jsonify({
-                    "success": True,
-                    "status": bot.get_status()
-                }), 200
-            else:
-                return jsonify({
-                    "success": True,
-                    "status": {
-                        "running": False,
-                        "message": "No hay bot activo"
-                    }
-                }), 200
-                
-    except Exception as e:
-        logger.error(f"Error obteniendo estado: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
-@app.route('/api/live_data', methods=['GET'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-@require_auth
-def get_live_data():
-    """Obtener datos en tiempo real del bot"""
-    try:
-        email = session['user_email']
-        
-        with bots_lock:
-            if email in active_bots and active_bots[email].running:
-                bot = active_bots[email]
-                
-                # Obtener última vela
-                current_candle = bot._get_current_candle()
-                
-                # Obtener estado del bot
-                status = bot.get_status()
-                
-                # Obtener trades recientes
-                recent_trades = []
-                if hasattr(bot.session, 'trades'):
-                    for trade in bot.session.trades[-10:]:  # Últimos 10 trades
-                        recent_trades.append({
-                            'id': trade.id,
-                            'time': trade.entry_time.isoformat(),
-                            'symbol': trade.symbol,
-                            'direction': trade.direction,
-                            'amount': trade.amount,
-                            'result': trade.result,
-                            'profit': trade.profit
-                        })
-                
-                return jsonify({
-                    "success": True,
                     "data": {
                         "current_candle": current_candle,
                         "bot_status": status,
@@ -1242,29 +1154,24 @@ signal.signal(signal.SIGTERM, graceful_shutdown)
 signal.signal(signal.SIGINT, graceful_shutdown)
 atexit.register(lambda: graceful_shutdown())
 
-# THREADS DE MANTENIMIENTO CONDICIONADO PARA RENDER
-def start_maintenance_threads():
-    """Iniciar threads de mantenimiento solo si no es Render"""
-    if not os.environ.get('RENDER'):
-        # Solo en desarrollo local
-        Thread(target=cleanup_inactive_sessions, daemon=True).start()
-        Thread(target=reset_daily_limits, daemon=True).start()
-        logger.info("Threads de mantenimiento iniciados")
-    else:
-        logger.info("Threads de mantenimiento deshabilitados en Render")
+# Iniciar threads de mantenimiento SOLO SI NO ES RENDER
+if not os.environ.get('RENDER'):
+    Thread(target=cleanup_inactive_sessions, daemon=True).start()
+    Thread(target=reset_daily_limits, daemon=True).start()
 
 # ============================================================================
-# MAIN - PUNTO DE ENTRADA OPTIMIZADO PARA RENDER
+# MAIN - PUNTO DE ENTRADA
 # ============================================================================
 
 # Para producción, este bloque solo muestra información
+# El servidor real se ejecuta con Gunicorn
 port = int(os.environ.get('PORT', 5000))
 
 logger.info("=" * 70)
 logger.info("🎯 BOT PROFESIONAL DE OPCIONES BINARIAS - IQ OPTION V2.0")
 logger.info("=" * 70)
 logger.info(f"📍 Puerto: {port}")
-logger.info(f"🌐 Frontend: https://iqoptionbot.ct.ws")
+logger.info(f"🌐 Frontend: {FRONTEND_DOMAINS[0]}")
 logger.info(f"🔧 Modo: {'REAL' if IQ_AVAILABLE else 'SIMULACIÓN'}")
 logger.info(f"📱 Telegram: {'✅ Configurado' if TELEGRAM_BOT_TOKEN else '❌ No configurado'}")
 logger.info(f"📊 Estrategias disponibles: {len(STRATEGY_CONFIG)}")
@@ -1298,760 +1205,101 @@ send_telegram_message(
     f"⏰ {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 )
 
-# CONFIGURACIÓN OPTIMIZADA PARA RENDER
+# Solo ejecutar el servidor de desarrollo si no estamos en producción
 if __name__ == '__main__':
     # Detectar si estamos en Render
     if os.environ.get('RENDER'):
-        # En producción con Render, NO ejecutar socketio.run()
-        # Gunicorn manejará la aplicación
-        logger.info("🚀 Ejecutando en modo producción con Render/Gunicorn")
-        logger.info("⚠️ NO iniciando threads de mantenimiento para evitar loops infinitos")
-        # NO ejecutar socketio.run() aquí
+        # En producción, Gunicorn maneja el servidor
+        logger.info("🚀 Ejecutando en modo producción con Gunicorn")
     else:
-        # En desarrollo local
+        # En desarrollo, usar el servidor de Flask-SocketIO
         logger.info("🔧 Ejecutando en modo desarrollo")
-        start_maintenance_threads()
-        try:
-            socketio.run(app, host='0.0.0.0', port=port, debug=False)
-        except KeyboardInterrupt:
-            graceful_shutdown()
-else:
-    # Esta es la configuración para Gunicorn en producción
-    logger.info("🚀 Aplicación cargada para Gunicorn en Render")
-    
-    # Para Gunicorn, la aplicación WSGI debe ser accesible
-    # SocketIO se manejará automáticamente
-    application = socketio.wsgi_app# main.py - Backend Profesional para Bot de Opciones Binarias IQ Option
-# Con estrategias mejoradas, gestión de riesgo avanzada y datos en tiempo real
+        socketio.run(app, host='0.0.0.0', port=port, debug=True)
 
-import os
-import sys
-import logging
-import datetime
-import time
-import requests
-import numpy as np
-import pandas as pd
-from functools import wraps
-from threading import Thread, Lock, Event, Timer
-import json
-import math
-import signal
-import atexit
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Any
-from enum import Enum
-from collections import deque
-import asyncio
-import websocket
-from concurrent.futures import ThreadPoolExecutor
-
-# Configuración de logging mejorada
-log_format = '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
-logging.basicConfig(
-    level=logging.INFO,
-    format=log_format,
-    handlers=[
-        logging.FileHandler('/tmp/iqoption_bot.log') if not os.environ.get('RENDER') else logging.StreamHandler(),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
-
-# Flask y extensiones
-from flask import Flask, request, jsonify, session, make_response
-from flask_cors import CORS, cross_origin
-from flask_session import Session
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
-from flask_socketio import SocketIO, emit, join_room, leave_room
-
-# Importar IQOptionAPI
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-try:
-    from iqoptionapi.stable_api import IQ_Option
-    IQ_AVAILABLE = True
-    logger.info("✅ IQOptionAPI cargada correctamente")
-except ImportError as e:
-    logger.error(f"❌ Error cargando IQOptionAPI: {e}")
-    IQ_AVAILABLE = False
-
-# ============================================================================
-# CONFIGURACIÓN FLASK Y SOCKETIO
-# ============================================================================
-
-app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'iqoption-bot-secure-2024')
-app.config['SESSION_TYPE'] = 'filesystem'
-app.config['SESSION_FILE_DIR'] = '/tmp/flask_sessions'
-app.config['SESSION_PERMANENT'] = True
-app.config['PERMANENT_SESSION_LIFETIME'] = 3600 * 24
-
-# SocketIO para comunicación en tiempo real
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
-
-# CORS mejorado
-FRONTEND_DOMAINS = [
-    "https://iqoptionbot.ct.ws",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000"
-]
-
-CORS(app, 
-     origins=FRONTEND_DOMAINS,
-     methods=['GET', 'POST', 'OPTIONS'],
-     allow_headers=['Content-Type', 'Authorization', 'Accept', 'Origin'],
-     supports_credentials=True,
-     max_age=3600)
-
-Session(app)
-
-# Rate limiting
-limiter = Limiter(
-    app=app,
-    key_func=get_remote_address,
-    storage_uri="memory://",
-    default_limits=["2000 per day", "300 per hour"]
-)
-
-# Variables globales mejoradas
-user_sessions = {}
-active_bots = {}
-market_data_streams = {}
-sessions_lock = Lock()
-bots_lock = Lock()
-data_lock = Lock()
-
-# Telegram
-TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', "7787754995:AAEvM36bO9B4SvGA1cr1VP1j-Rx6on5LrjM")
-TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', "7009100334")
-
-# Pool de threads para operaciones asíncronas
-executor = ThreadPoolExecutor(max_workers=10)
-
-# ============================================================================
-# ENUMS Y CONFIGURACIÓN MEJORADA
-# ============================================================================
-
-class RiskLevel(Enum):
-    CONSERVATIVE = "conservative"      # 1-2% por operación
-    MODERATE = "moderate"             # 2-5% por operación  
-    AGGRESSIVE = "aggressive"         # 5-10% por operación
-    VERY_AGGRESSIVE = "very_aggressive"  # 10%+ por operación
-
-class Strategy(Enum):
-    # Estrategias de bajo riesgo (60-70% win rate)
-    SUPPORT_RESISTANCE = "support_resistance"
-    TREND_FOLLOWING = "trend_following"
-    
-    # Estrategias de riesgo moderado (50-60% win rate)
-    BOLLINGER_BOUNCE = "bollinger_bounce"
-    RSI_DIVERGENCE = "rsi_divergence"
-    MACD_CROSS = "macd_cross"
-    
-    # Estrategias de alto riesgo (40-50% win rate pero mayor payout)
-    BREAKOUT = "breakout"
-    NEWS_TRADING = "news_trading"
-    MOMENTUM_SCALPING = "momentum_scalping"
-    
-    # Estrategias combinadas
-    MULTI_INDICATOR = "multi_indicator"
-    AI_PATTERN = "ai_pattern"
-
-class MoneyManagement(Enum):
-    FIXED_AMOUNT = "fixed_amount"
-    PERCENTAGE = "percentage"
-    MARTINGALE = "martingale"
-    ANTI_MARTINGALE = "anti_martingale"
-    FIBONACCI = "fibonacci"
-    KELLY_CRITERION = "kelly_criterion"
-
-# Configuración detallada de estrategias
-STRATEGY_CONFIG = {
-    Strategy.SUPPORT_RESISTANCE: {
-        "name": "Soporte y Resistencia",
-        "description": "Opera en rebotes de niveles clave identificados automáticamente",
-        "risk_level": RiskLevel.CONSERVATIVE,
-        "timeframes": [60, 300, 900],  # 1m, 5m, 15m
-        "min_confidence": 75,
-        "indicators": ["support_resistance", "volume", "rsi"],
-        "expected_win_rate": 65,
-        "avg_trades_per_hour": 2,
-        "best_sessions": ["london", "new_york"],
-        "avoid_news": True
-    },
-    Strategy.TREND_FOLLOWING: {
-        "name": "Seguimiento de Tendencia",
-        "description": "Identifica y sigue tendencias fuertes con confirmación múltiple",
-        "risk_level": RiskLevel.CONSERVATIVE,
-        "timeframes": [300, 900, 1800],  # 5m, 15m, 30m
-        "min_confidence": 70,
-        "indicators": ["ema", "macd", "adx", "volume"],
-        "expected_win_rate": 62,
-        "avg_trades_per_hour": 3,
-        "best_sessions": ["london", "new_york"],
-        "avoid_news": False
-    },
-    Strategy.BOLLINGER_BOUNCE: {
-        "name": "Rebote en Bandas de Bollinger",
-        "description": "Opera reversiones en los extremos de las bandas con filtros adicionales",
-        "risk_level": RiskLevel.MODERATE,
-        "timeframes": [60, 300],  # 1m, 5m
-        "min_confidence": 65,
-        "indicators": ["bollinger_bands", "rsi", "stochastic"],
-        "expected_win_rate": 58,
-        "avg_trades_per_hour": 4,
-        "best_sessions": ["all"],
-        "avoid_news": True
-    },
-    Strategy.RSI_DIVERGENCE: {
-        "name": "Divergencias RSI",
-        "description": "Detecta divergencias entre precio y RSI para anticipar reversiones",
-        "risk_level": RiskLevel.MODERATE,
-        "timeframes": [300, 900],  # 5m, 15m
-        "min_confidence": 68,
-        "indicators": ["rsi", "price_action", "volume"],
-        "expected_win_rate": 56,
-        "avg_trades_per_hour": 2,
-        "best_sessions": ["london", "new_york"],
-        "avoid_news": True
-    },
-    Strategy.MACD_CROSS: {
-        "name": "Cruce MACD Optimizado",
-        "description": "Cruces MACD con filtros de tendencia y momentum",
-        "risk_level": RiskLevel.MODERATE,
-        "timeframes": [300, 900],  # 5m, 15m
-        "min_confidence": 60,
-        "indicators": ["macd", "ema", "atr"],
-        "expected_win_rate": 55,
-        "avg_trades_per_hour": 3,
-        "best_sessions": ["london", "new_york"],
-        "avoid_news": False
-    },
-    Strategy.BREAKOUT: {
-        "name": "Ruptura de Rangos",
-        "description": "Opera rupturas de consolidaciones y rangos con volumen",
-        "risk_level": RiskLevel.AGGRESSIVE,
-        "timeframes": [60, 300],  # 1m, 5m
-        "min_confidence": 55,
-        "indicators": ["atr", "volume", "bollinger_bands"],
-        "expected_win_rate": 48,
-        "avg_trades_per_hour": 5,
-        "best_sessions": ["london_open", "new_york_open"],
-        "avoid_news": False
-    },
-    Strategy.NEWS_TRADING: {
-        "name": "Trading de Noticias",
-        "description": "Opera la volatilidad generada por noticias económicas importantes",
-        "risk_level": RiskLevel.VERY_AGGRESSIVE,
-        "timeframes": [60],  # 1m
-        "min_confidence": 50,
-        "indicators": ["atr", "volume_spike"],
-        "expected_win_rate": 45,
-        "avg_trades_per_hour": 1,
-        "best_sessions": ["news_events"],
-        "avoid_news": False
-    },
-    Strategy.MOMENTUM_SCALPING: {
-        "name": "Scalping de Momentum",
-        "description": "Operaciones rápidas siguiendo el momentum del mercado",
-        "risk_level": RiskLevel.AGGRESSIVE,
-        "timeframes": [60],  # 1m
-        "min_confidence": 52,
-        "indicators": ["momentum", "volume", "ema_fast"],
-        "expected_win_rate": 47,
-        "avg_trades_per_hour": 8,
-        "best_sessions": ["high_volatility"],
-        "avoid_news": False
-    },
-    Strategy.MULTI_INDICATOR: {
-        "name": "Multi-Indicador Avanzado",
-        "description": "Combina múltiples indicadores con machine learning básico",
-        "risk_level": RiskLevel.MODERATE,
-        "timeframes": [300, 900],  # 5m, 15m
-        "min_confidence": 70,
-        "indicators": ["all"],
-        "expected_win_rate": 60,
-        "avg_trades_per_hour": 3,
-        "best_sessions": ["london", "new_york"],
-        "avoid_news": True
-    },
-    Strategy.AI_PATTERN: {
-        "name": "Reconocimiento de Patrones IA",
-        "description": "Utiliza patrones históricos y análisis predictivo",
-        "risk_level": RiskLevel.MODERATE,
-        "timeframes": [300, 900],  # 5m, 15m
-        "min_confidence": 72,
-        "indicators": ["pattern_recognition", "ml_signals"],
-        "expected_win_rate": 63,
-        "avg_trades_per_hour": 2,
-        "best_sessions": ["all"],
-        "avoid_news": True
-    }
-}
-
-# ============================================================================
-# CLASES DE DATOS MEJORADAS
-# ============================================================================
-
-@dataclass
-class Trade:
-    id: str
-    symbol: str
-    direction: str  # "call" o "put"
-    amount: float
-    entry_price: float
-    entry_time: datetime.datetime
-    expiry_time: int  # en minutos
-    strategy: Strategy
-    confidence: float
-    indicators_data: Dict[str, Any]
-    result: Optional[str] = None  # "win", "loss", "draw"
-    exit_price: Optional[float] = None
-    profit: Optional[float] = None
-    
-@dataclass
-class MarketData:
-    symbol: str
-    timeframe: int
-    timestamp: datetime.datetime
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: float
-    indicators: Dict[str, float] = field(default_factory=dict)
-
-@dataclass
-class TradingSession:
-    start_time: datetime.datetime
-    end_time: Optional[datetime.datetime] = None
-    initial_balance: float = 0.0
-    current_balance: float = 0.0
-    trades: List[Trade] = field(default_factory=list)
-    total_trades: int = 0
-    winning_trades: int = 0
-    losing_trades: int = 0
-    total_profit: float = 0.0
-    max_drawdown: float = 0.0
-    current_drawdown: float = 0.0
-    consecutive_wins: int = 0
-    consecutive_losses: int = 0
-    max_consecutive_wins: int = 0
-    max_consecutive_losses: int = 0
-    
-    def add_trade(self, trade: Trade):
-        self.trades.append(trade)
-        self.total_trades += 1
-        
-        if trade.result == "win":
-            self.winning_trades += 1
-            self.consecutive_wins += 1
-            self.consecutive_losses = 0
-            self.max_consecutive_wins = max(self.max_consecutive_wins, self.consecutive_wins)
-        elif trade.result == "loss":
-            self.losing_trades += 1
-            self.consecutive_losses += 1
-            self.consecutive_wins = 0
-            self.max_consecutive_losses = max(self.max_consecutive_losses, self.consecutive_losses)
-            
-        if trade.profit:
-            self.total_profit += trade.profit
-            self.current_balance += trade.profit
-            
-        # Calcular drawdown
-        peak_balance = max(self.initial_balance, self.current_balance)
-        self.current_drawdown = (peak_balance - self.current_balance) / peak_balance * 100
-        self.max_drawdown = max(self.max_drawdown, self.current_drawdown)
-    
-    @property
-    def win_rate(self) -> float:
-        if self.total_trades == 0:
-            return 0.0
-        return (self.winning_trades / self.total_trades) * 100
-    
-    @property
-    def profit_factor(self) -> float:
-        total_wins = sum(t.profit for t in self.trades if t.profit and t.profit > 0)
-        total_losses = abs(sum(t.profit for t in self.trades if t.profit and t.profit < 0))
-        if total_losses == 0:
-            return float('inf') if total_wins > 0 else 0
-        return total_wins / total_losses
-
-# ============================================================================
-# ANÁLISIS TÉCNICO MEJORADO
-# ============================================================================
-
-class TechnicalAnalysis:
-    """Clase para cálculo de indicadores técnicos"""
-    
-    @staticmethod
-    def calculate_sma(data: List[float], period: int) -> float:
-        """Media móvil simple"""
-        if len(data) < period:
-            return None
-        return sum(data[-period:]) / period
-    
-    @staticmethod
-    def calculate_ema(data: List[float], period: int) -> float:
-        """Media móvil exponencial"""
-        if len(data) < period:
-            return None
-        
-        multiplier = 2 / (period + 1)
-        ema = sum(data[:period]) / period
-        
-        for price in data[period:]:
-            ema = (price - ema) * multiplier + ema
-        
-        return ema
-    
-    @staticmethod
-    def calculate_rsi(data: List[float], period: int = 14) -> float:
-        """Índice de fuerza relativa"""
-        if len(data) < period + 1:
-            return None
-        
-        gains = []
-        losses = []
-        
-        for i in range(1, len(data)):
-            change = data[i] - data[i-1]
-            if change > 0:
-                gains.append(change)
-                losses.append(0)
+# Para Gunicorn en producción
+application = socketio.wsgi_app
+                    "message": "Bot detenido exitosamente",
+                    "final_stats": status['session']
+                }), 200
             else:
-                gains.append(0)
-                losses.append(abs(change))
-        
-        avg_gain = sum(gains[-period:]) / period
-        avg_loss = sum(losses[-period:]) / period
-        
-        if avg_loss == 0:
-            return 100
-        
-        rs = avg_gain / avg_loss
-        rsi = 100 - (100 / (1 + rs))
-        
-        return rsi
-    
-    @staticmethod
-    def calculate_bollinger_bands(data: List[float], period: int = 20, std_dev: int = 2) -> Tuple[float, float, float]:
-        """Bandas de Bollinger"""
-        if len(data) < period:
-            return None, None, None
-        
-        sma = sum(data[-period:]) / period
-        variance = sum((x - sma) ** 2 for x in data[-period:]) / period
-        std = math.sqrt(variance)
-        
-        upper_band = sma + (std * std_dev)
-        lower_band = sma - (std * std_dev)
-        
-        return upper_band, sma, lower_band
-    
-    @staticmethod
-    def calculate_macd(data: List[float], fast: int = 12, slow: int = 26, signal: int = 9) -> Tuple[float, float, float]:
-        """MACD"""
-        if len(data) < slow + signal:
-            return None, None, None
-        
-        ema_fast = TechnicalAnalysis.calculate_ema(data, fast)
-        ema_slow = TechnicalAnalysis.calculate_ema(data, slow)
-        
-        if ema_fast is None or ema_slow is None:
-            return None, None, None
-        
-        macd_line = ema_fast - ema_slow
-        
-        # Calcular línea de señal
-        macd_values = []
-        for i in range(slow, len(data)):
-            ema_f = TechnicalAnalysis.calculate_ema(data[:i+1], fast)
-            ema_s = TechnicalAnalysis.calculate_ema(data[:i+1], slow)
-            if ema_f and ema_s:
-                macd_values.append(ema_f - ema_s)
-        
-        signal_line = TechnicalAnalysis.calculate_ema(macd_values, signal)
-        histogram = macd_line - signal_line if signal_line else None
-        
-        return macd_line, signal_line, histogram
-    
-    @staticmethod
-    def calculate_stochastic(high: List[float], low: List[float], close: List[float], period: int = 14) -> Tuple[float, float]:
-        """Oscilador estocástico"""
-        if len(high) < period or len(low) < period or len(close) < period:
-            return None, None
-        
-        lowest_low = min(low[-period:])
-        highest_high = max(high[-period:])
-        
-        if highest_high == lowest_low:
-            return 50, 50
-        
-        k = ((close[-1] - lowest_low) / (highest_high - lowest_low)) * 100
-        
-        # %D es el SMA de 3 períodos de %K
-        k_values = []
-        for i in range(period, len(close)):
-            ll = min(low[i-period+1:i+1])
-            hh = max(high[i-period+1:i+1])
-            if hh != ll:
-                k_val = ((close[i] - ll) / (hh - ll)) * 100
-                k_values.append(k_val)
-        
-        d = sum(k_values[-3:]) / 3 if len(k_values) >= 3 else k
-        
-        return k, d
-    
-    @staticmethod
-    def find_support_resistance(data: List[float], window: int = 20) -> Tuple[List[float], List[float]]:
-        """Encuentra niveles de soporte y resistencia"""
-        if len(data) < window * 2:
-            return [], []
-        
-        supports = []
-        resistances = []
-        
-        for i in range(window, len(data) - window):
-            # Buscar mínimos locales (soportes)
-            if all(data[i] <= data[j] for j in range(i - window, i + window + 1)):
-                supports.append(data[i])
-            
-            # Buscar máximos locales (resistencias)
-            if all(data[i] >= data[j] for j in range(i - window, i + window + 1)):
-                resistances.append(data[i])
-        
-        # Agrupar niveles cercanos
-        def group_levels(levels, threshold=0.001):
-            if not levels:
-                return []
-            
-            grouped = []
-            levels.sort()
-            current_group = [levels[0]]
-            
-            for level in levels[1:]:
-                if abs(level - current_group[-1]) / current_group[-1] < threshold:
-                    current_group.append(level)
-                else:
-                    grouped.append(sum(current_group) / len(current_group))
-                    current_group = [level]
-            
-            grouped.append(sum(current_group) / len(current_group))
-            return grouped
-        
-        return group_levels(supports), group_levels(resistances)
+                return jsonify({
+                    "success": False,
+                    "message": "No hay bot activo"
+                }), 404
+                
+    except Exception as e:
+        logger.error(f"Error deteniendo bot: {e}")
+        return jsonify({
+            "success": False,
+            "message": f"Error: {str(e)}"
+        }), 500
 
-# ============================================================================
-# GESTIÓN DE RIESGO AVANZADA
-# ============================================================================
-
-class RiskManager:
-    """Gestión avanzada de riesgo y tamaño de posiciones"""
-    
-    def __init__(self, initial_balance: float, risk_level: RiskLevel):
-        self.initial_balance = initial_balance
-        self.current_balance = initial_balance
-        self.risk_level = risk_level
-        self.max_risk_per_trade = self._get_max_risk_percentage()
-        self.max_daily_loss = self._get_max_daily_loss()
-        self.daily_loss = 0.0
-        self.trade_history = deque(maxlen=100)
+@app.route('/api/bot_status', methods=['GET'])
+@cross_origin(origins=FRONTEND_DOMAINS)
+@require_auth
+def bot_status():
+    """Obtener estado del bot"""
+    try:
+        email = session['user_email']
         
-    def _get_max_risk_percentage(self) -> float:
-        """Obtiene el porcentaje máximo de riesgo por operación"""
-        risk_map = {
-            RiskLevel.CONSERVATIVE: 0.01,      # 1%
-            RiskLevel.MODERATE: 0.025,         # 2.5%
-            RiskLevel.AGGRESSIVE: 0.05,        # 5%
-            RiskLevel.VERY_AGGRESSIVE: 0.1     # 10%
-        }
-        return risk_map.get(self.risk_level, 0.02)
-    
-    def _get_max_daily_loss(self) -> float:
-        """Obtiene la pérdida máxima diaria permitida"""
-        loss_map = {
-            RiskLevel.CONSERVATIVE: 0.05,      # 5%
-            RiskLevel.MODERATE: 0.10,          # 10%
-            RiskLevel.AGGRESSIVE: 0.20,        # 20%
-            RiskLevel.VERY_AGGRESSIVE: 0.30    # 30%
-        }
-        return self.initial_balance * loss_map.get(self.risk_level, 0.10)
-    
-    def calculate_position_size(self, confidence: float, money_management: MoneyManagement, 
-                              consecutive_losses: int = 0, win_rate: float = 0.5) -> float:
-        """Calcula el tamaño óptimo de la posición"""
-        
-        # Verificar límite diario
-        if self.daily_loss >= self.max_daily_loss:
-            logger.warning("Límite de pérdida diaria alcanzado")
-            return 0
-        
-        base_amount = self.current_balance * self.max_risk_per_trade
-        
-        if money_management == MoneyManagement.FIXED_AMOUNT:
-            return min(base_amount, self.current_balance * 0.05)
-        
-        elif money_management == MoneyManagement.PERCENTAGE:
-            # Ajustar por confianza
-            confidence_multiplier = confidence / 100
-            return base_amount * confidence_multiplier
-        
-        elif money_management == MoneyManagement.MARTINGALE:
-            # Martingala con límites
-            max_multiplier = 8  # Máximo 3 duplicaciones
-            multiplier = min(2 ** consecutive_losses, max_multiplier)
-            amount = base_amount * multiplier
-            
-            # Limitar al 10% del balance
-            return min(amount, self.current_balance * 0.10)
-        
-        elif money_management == MoneyManagement.ANTI_MARTINGALE:
-            # Anti-martingala: aumentar después de ganar
-            if consecutive_losses > 0:
-                return base_amount * 0.5
+        with bots_lock:
+            if email in active_bots and active_bots[email].running:
+                bot = active_bots[email]
+                return jsonify({
+                    "success": True,
+                    "status": bot.get_status()
+                }), 200
             else:
-                return base_amount * 1.5
-        
-        elif money_management == MoneyManagement.FIBONACCI:
-            # Secuencia de Fibonacci
-            fib_sequence = [1, 1, 2, 3, 5, 8, 13, 21]
-            index = min(consecutive_losses, len(fib_sequence) - 1)
-            multiplier = fib_sequence[index]
-            amount = base_amount * multiplier
-            
-            return min(amount, self.current_balance * 0.10)
-        
-        elif money_management == MoneyManagement.KELLY_CRITERION:
-            # Criterio de Kelly
-            if win_rate <= 0 or win_rate >= 1:
-                return base_amount
-            
-            # Asumiendo payout de 0.8 (80%)
-            payout = 0.8
-            kelly_percentage = (payout * win_rate - (1 - win_rate)) / payout
-            
-            # Aplicar fracción de Kelly (25%) para ser más conservador
-            kelly_fraction = 0.25
-            amount = self.current_balance * kelly_percentage * kelly_fraction
-            
-            # Limitar entre 1% y 5% del balance
-            return max(min(amount, self.current_balance * 0.05), self.current_balance * 0.01)
-        
-        return base_amount
-    
-    def update_balance(self, profit: float):
-        """Actualiza el balance y estadísticas"""
-        self.current_balance += profit
-        if profit < 0:
-            self.daily_loss += abs(profit)
-        
-        self.trade_history.append({
-            'profit': profit,
-            'balance': self.current_balance,
-            'timestamp': datetime.datetime.now()
-        })
-    
-    def reset_daily_limits(self):
-        """Reinicia los límites diarios"""
-        self.daily_loss = 0.0
-    
-    def should_stop_trading(self, consecutive_losses: int) -> bool:
-        """Determina si se debe detener el trading"""
-        if self.daily_loss >= self.max_daily_loss:
-            return True
-        
-        if self.current_balance <= self.initial_balance * 0.5:
-            return True
-        
-        max_consecutive_losses = {
-            RiskLevel.CONSERVATIVE: 3,
-            RiskLevel.MODERATE: 5,
-            RiskLevel.AGGRESSIVE: 7,
-            RiskLevel.VERY_AGGRESSIVE: 10
-        }
-        
-        if consecutive_losses >= max_consecutive_losses.get(self.risk_level, 5):
-            return True
-        
-        return False
+                return jsonify({
+                    "success": True,
+                    "status": {
+                        "running": False,
+                        "message": "No hay bot activo"
+                    }
+                }), 200
+                
+    except Exception as e:
+        logger.error(f"Error obteniendo estado: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
-# ============================================================================
-# BOT DE TRADING MEJORADO
-# ============================================================================
-
-class AdvancedBinaryBot:
-    """Bot de trading avanzado para opciones binarias"""
-    
-    def __init__(self, iq_api, config: Dict[str, Any], email: str):
-        self.iq_api = iq_api
-        self.config = config
-        self.email = email
-        self.running = False
-        self.thread = None
+@app.route('/api/live_data', methods=['GET'])
+@cross_origin(origins=FRONTEND_DOMAINS)
+@require_auth
+def get_live_data():
+    """Obtener datos en tiempo real del bot"""
+    try:
+        email = session['user_email']
         
-        # Configuración de trading
-        self.symbol = config.get('symbol', 'EURUSD')
-        self.strategies = [Strategy(s) for s in config.get('strategies', ['support_resistance'])]
-        self.money_management = MoneyManagement(config.get('money_management', 'percentage'))
-        self.risk_level = RiskLevel(config.get('risk_level', 'moderate'))
-        
-        # Gestión de riesgo
-        initial_balance = config.get('initial_balance', 1000)
-        self.risk_manager = RiskManager(initial_balance, self.risk_level)
-        
-        # Sesión de trading
-        self.session = TradingSession(
-            start_time=datetime.datetime.now(),
-            initial_balance=initial_balance,
-            current_balance=initial_balance
-        )
-        
-        # Datos de mercado
-        self.candles_data = {
-            60: deque(maxlen=500),     # 1 minuto
-            300: deque(maxlen=200),    # 5 minutos
-            900: deque(maxlen=100),    # 15 minutos
-            1800: deque(maxlen=50)     # 30 minutos
-        }
-        
-        # WebSocket para datos en tiempo real
-        self.ws_running = False
-        self.ws_thread = None
-        
-        # Control de operaciones
-        self.min_time_between_trades = 30  # segundos
-        self.last_trade_time = None
-        self.pending_signals = deque(maxlen=10)
-        
-        # Límites configurables
-        self.max_consecutive_losses = config.get('max_consecutive_losses', 5)
-        self.max_consecutive_wins = config.get('max_consecutive_wins', 0)
-        self.max_daily_trades = config.get('max_daily_trades', 20)
-        self.stop_on_profit = config.get('stop_on_profit', 0)
-        self.stop_on_loss = config.get('stop_on_loss', 0)
-        
-        logger.info(f"Bot inicializado para {email} con estrategias: {[s.value for s in self.strategies]}")
-    
-    def start(self):
-        """Iniciar bot de trading"""
-        if self.running:
-            logger.warning("El bot ya está en ejecución")
-            return
-        
-        self.running = True
-        self.session.start_time = datetime.datetime.now()
-        
-        # Iniciar recolección de datos
-        self._start_data_collection()
-        
-        # Iniciar thread principal del bot
-        self.thread = Thread(target=self._run, daemon=True)
-        self.thread.start()
-        
-        logger.info(f"🚀 Bot iniciado exitosamente para {self.email}")
+        with bots_lock:
+            if email in active_bots and active_bots[email].running:
+                bot = active_bots[email]
+                
+                # Obtener última vela
+                current_candle = bot._get_current_candle()
+                
+                # Obtener estado del bot
+                status = bot.get_status()
+                
+                # Obtener trades recientes
+                recent_trades = []
+                if hasattr(bot.session, 'trades'):
+                    for trade in bot.session.trades[-10:]:  # Últimos 10 trades
+                        recent_trades.append({
+                            'id': trade.id,
+                            'time': trade.entry_time.isoformat(),
+                            'symbol': trade.symbol,
+                            'direction': trade.direction,
+                            'amount': trade.amount,
+                            'result': trade.result,
+                            'profit': trade.profit
+                        })
+                
+                return jsonify({
+                    "success": True,
+                    "        logger.info(f"🚀 Bot iniciado exitosamente para {self.email}")
         self._send_telegram_notification(
             f"🚀 *BOT INICIADO*\n"
             f"👤 Usuario: {self.email}\n"
@@ -2768,3 +2016,742 @@ class AdvancedBinaryBot:
         message += f"📈 Total trades: {self.session.total_trades}\n"
         message += f"✅ Ganadas: {self.session.winning_trades}\n"
         message += f"❌ Perdidas: {self.session.losing_trades}\n"
+        message += f"🎯 Win Rate: {self.session.win_rate:.1f}%\n"
+        profit_sign = '+' if self.session.total_profit >= 0 else ''
+        message += f"💰 Profit: {profit_sign}${self.session.total_profit:.2f}\n"
+        message += f"💵 Balance Final: ${# main.py - Backend Profesional para Bot de Opciones Binarias IQ Option
+# Con estrategias mejoradas, gestión de riesgo avanzada y datos en tiempo real
+
+import os
+import sys
+import logging
+import datetime
+import time
+import requests
+import numpy as np
+import pandas as pd
+from functools import wraps
+from threading import Thread, Lock, Event, Timer
+import json
+import math
+import signal
+import atexit
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Tuple, Any
+from enum import Enum
+from collections import deque
+import asyncio
+import websocket
+from concurrent.futures import ThreadPoolExecutor
+
+# Configuración de logging mejorada
+log_format = '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+logging.basicConfig(
+    level=logging.INFO,
+    format=log_format,
+    handlers=[
+        logging.FileHandler('/tmp/iqoption_bot.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# Flask y extensiones
+from flask import Flask, request, jsonify, session, make_response
+from flask_cors import CORS, cross_origin
+from flask_session import Session
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_socketio import SocketIO, emit, join_room, leave_room
+
+# Importar IQOptionAPI
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    from iqoptionapi.stable_api import IQ_Option
+    IQ_AVAILABLE = True
+    logger.info("✅ IQOptionAPI cargada correctamente")
+except ImportError as e:
+    logger.error(f"❌ Error cargando IQOptionAPI: {e}")
+    IQ_AVAILABLE = False
+
+# ============================================================================
+# CONFIGURACIÓN FLASK Y SOCKETIO
+# ============================================================================
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'iqoption-bot-secure-2024')
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['SESSION_FILE_DIR'] = '/tmp/flask_sessions'
+app.config['SESSION_PERMANENT'] = True
+app.config['PERMANENT_SESSION_LIFETIME'] = 3600 * 24
+
+# SocketIO para comunicación en tiempo real
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+
+# CORS mejorado
+FRONTEND_DOMAINS = [
+    "https://iqoptionbot.ct.ws",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000"
+]
+
+CORS(app, 
+     origins=FRONTEND_DOMAINS,
+     methods=['GET', 'POST', 'OPTIONS'],
+     allow_headers=['Content-Type', 'Authorization', 'Accept', 'Origin'],
+     supports_credentials=True,
+     max_age=3600)
+
+Session(app)
+
+# Rate limiting
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    storage_uri="memory://",
+    default_limits=["2000 per day", "300 per hour"]
+)
+
+# Variables globales mejoradas
+user_sessions = {}
+active_bots = {}
+market_data_streams = {}
+sessions_lock = Lock()
+bots_lock = Lock()
+data_lock = Lock()
+
+# Telegram
+TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', "7787754995:AAEvM36bO9B4SvGA1cr1VP1j-Rx6on5LrjM")
+TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', "7009100334")
+
+# Pool de threads para operaciones asíncronas
+executor = ThreadPoolExecutor(max_workers=10)
+
+# ============================================================================
+# ENUMS Y CONFIGURACIÓN MEJORADA
+# ============================================================================
+
+class RiskLevel(Enum):
+    CONSERVATIVE = "conservative"      # 1-2% por operación
+    MODERATE = "moderate"             # 2-5% por operación  
+    AGGRESSIVE = "aggressive"         # 5-10% por operación
+    VERY_AGGRESSIVE = "very_aggressive"  # 10%+ por operación
+
+class Strategy(Enum):
+    # Estrategias de bajo riesgo (60-70% win rate)
+    SUPPORT_RESISTANCE = "support_resistance"
+    TREND_FOLLOWING = "trend_following"
+    
+    # Estrategias de riesgo moderado (50-60% win rate)
+    BOLLINGER_BOUNCE = "bollinger_bounce"
+    RSI_DIVERGENCE = "rsi_divergence"
+    MACD_CROSS = "macd_cross"
+    
+    # Estrategias de alto riesgo (40-50% win rate pero mayor payout)
+    BREAKOUT = "breakout"
+    NEWS_TRADING = "news_trading"
+    MOMENTUM_SCALPING = "momentum_scalping"
+    
+    # Estrategias combinadas
+    MULTI_INDICATOR = "multi_indicator"
+    AI_PATTERN = "ai_pattern"
+
+class MoneyManagement(Enum):
+    FIXED_AMOUNT = "fixed_amount"
+    PERCENTAGE = "percentage"
+    MARTINGALE = "martingale"
+    ANTI_MARTINGALE = "anti_martingale"
+    FIBONACCI = "fibonacci"
+    KELLY_CRITERION = "kelly_criterion"
+
+# Configuración detallada de estrategias
+STRATEGY_CONFIG = {
+    Strategy.SUPPORT_RESISTANCE: {
+        "name": "Soporte y Resistencia",
+        "description": "Opera en rebotes de niveles clave identificados automáticamente",
+        "risk_level": RiskLevel.CONSERVATIVE,
+        "timeframes": [60, 300, 900],  # 1m, 5m, 15m
+        "min_confidence": 75,
+        "indicators": ["support_resistance", "volume", "rsi"],
+        "expected_win_rate": 65,
+        "avg_trades_per_hour": 2,
+        "best_sessions": ["london", "new_york"],
+        "avoid_news": True
+    },
+    Strategy.TREND_FOLLOWING: {
+        "name": "Seguimiento de Tendencia",
+        "description": "Identifica y sigue tendencias fuertes con confirmación múltiple",
+        "risk_level": RiskLevel.CONSERVATIVE,
+        "timeframes": [300, 900, 1800],  # 5m, 15m, 30m
+        "min_confidence": 70,
+        "indicators": ["ema", "macd", "adx", "volume"],
+        "expected_win_rate": 62,
+        "avg_trades_per_hour": 3,
+        "best_sessions": ["london", "new_york"],
+        "avoid_news": False
+    },
+    Strategy.BOLLINGER_BOUNCE: {
+        "name": "Rebote en Bandas de Bollinger",
+        "description": "Opera reversiones en los extremos de las bandas con filtros adicionales",
+        "risk_level": RiskLevel.MODERATE,
+        "timeframes": [60, 300],  # 1m, 5m
+        "min_confidence": 65,
+        "indicators": ["bollinger_bands", "rsi", "stochastic"],
+        "expected_win_rate": 58,
+        "avg_trades_per_hour": 4,
+        "best_sessions": ["all"],
+        "avoid_news": True
+    },
+    Strategy.RSI_DIVERGENCE: {
+        "name": "Divergencias RSI",
+        "description": "Detecta divergencias entre precio y RSI para anticipar reversiones",
+        "risk_level": RiskLevel.MODERATE,
+        "timeframes": [300, 900],  # 5m, 15m
+        "min_confidence": 68,
+        "indicators": ["rsi", "price_action", "volume"],
+        "expected_win_rate": 56,
+        "avg_trades_per_hour": 2,
+        "best_sessions": ["london", "new_york"],
+        "avoid_news": True
+    },
+    Strategy.MACD_CROSS: {
+        "name": "Cruce MACD Optimizado",
+        "description": "Cruces MACD con filtros de tendencia y momentum",
+        "risk_level": RiskLevel.MODERATE,
+        "timeframes": [300, 900],  # 5m, 15m
+        "min_confidence": 60,
+        "indicators": ["macd", "ema", "atr"],
+        "expected_win_rate": 55,
+        "avg_trades_per_hour": 3,
+        "best_sessions": ["london", "new_york"],
+        "avoid_news": False
+    },
+    Strategy.BREAKOUT: {
+        "name": "Ruptura de Rangos",
+        "description": "Opera rupturas de consolidaciones y rangos con volumen",
+        "risk_level": RiskLevel.AGGRESSIVE,
+        "timeframes": [60, 300],  # 1m, 5m
+        "min_confidence": 55,
+        "indicators": ["atr", "volume", "bollinger_bands"],
+        "expected_win_rate": 48,
+        "avg_trades_per_hour": 5,
+        "best_sessions": ["london_open", "new_york_open"],
+        "avoid_news": False
+    },
+    Strategy.NEWS_TRADING: {
+        "name": "Trading de Noticias",
+        "description": "Opera la volatilidad generada por noticias económicas importantes",
+        "risk_level": RiskLevel.VERY_AGGRESSIVE,
+        "timeframes": [60],  # 1m
+        "min_confidence": 50,
+        "indicators": ["atr", "volume_spike"],
+        "expected_win_rate": 45,
+        "avg_trades_per_hour": 1,
+        "best_sessions": ["news_events"],
+        "avoid_news": False
+    },
+    Strategy.MOMENTUM_SCALPING: {
+        "name": "Scalping de Momentum",
+        "description": "Operaciones rápidas siguiendo el momentum del mercado",
+        "risk_level": RiskLevel.AGGRESSIVE,
+        "timeframes": [60],  # 1m
+        "min_confidence": 52,
+        "indicators": ["momentum", "volume", "ema_fast"],
+        "expected_win_rate": 47,
+        "avg_trades_per_hour": 8,
+        "best_sessions": ["high_volatility"],
+        "avoid_news": False
+    },
+    Strategy.MULTI_INDICATOR: {
+        "name": "Multi-Indicador Avanzado",
+        "description": "Combina múltiples indicadores con machine learning básico",
+        "risk_level": RiskLevel.MODERATE,
+        "timeframes": [300, 900],  # 5m, 15m
+        "min_confidence": 70,
+        "indicators": ["all"],
+        "expected_win_rate": 60,
+        "avg_trades_per_hour": 3,
+        "best_sessions": ["london", "new_york"],
+        "avoid_news": True
+    },
+    Strategy.AI_PATTERN: {
+        "name": "Reconocimiento de Patrones IA",
+        "description": "Utiliza patrones históricos y análisis predictivo",
+        "risk_level": RiskLevel.MODERATE,
+        "timeframes": [300, 900],  # 5m, 15m
+        "min_confidence": 72,
+        "indicators": ["pattern_recognition", "ml_signals"],
+        "expected_win_rate": 63,
+        "avg_trades_per_hour": 2,
+        "best_sessions": ["all"],
+        "avoid_news": True
+    }
+}
+
+# ============================================================================
+# CLASES DE DATOS MEJORADAS
+# ============================================================================
+
+@dataclass
+class Trade:
+    id: str
+    symbol: str
+    direction: str  # "call" o "put"
+    amount: float
+    entry_price: float
+    entry_time: datetime.datetime
+    expiry_time: int  # en minutos
+    strategy: Strategy
+    confidence: float
+    indicators_data: Dict[str, Any]
+    result: Optional[str] = None  # "win", "loss", "draw"
+    exit_price: Optional[float] = None
+    profit: Optional[float] = None
+    
+@dataclass
+class MarketData:
+    symbol: str
+    timeframe: int
+    timestamp: datetime.datetime
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+    indicators: Dict[str, float] = field(default_factory=dict)
+
+@dataclass
+class TradingSession:
+    start_time: datetime.datetime
+    end_time: Optional[datetime.datetime] = None
+    initial_balance: float = 0.0
+    current_balance: float = 0.0
+    trades: List[Trade] = field(default_factory=list)
+    total_trades: int = 0
+    winning_trades: int = 0
+    losing_trades: int = 0
+    total_profit: float = 0.0
+    max_drawdown: float = 0.0
+    current_drawdown: float = 0.0
+    consecutive_wins: int = 0
+    consecutive_losses: int = 0
+    max_consecutive_wins: int = 0
+    max_consecutive_losses: int = 0
+    
+    def add_trade(self, trade: Trade):
+        self.trades.append(trade)
+        self.total_trades += 1
+        
+        if trade.result == "win":
+            self.winning_trades += 1
+            self.consecutive_wins += 1
+            self.consecutive_losses = 0
+            self.max_consecutive_wins = max(self.max_consecutive_wins, self.consecutive_wins)
+        elif trade.result == "loss":
+            self.losing_trades += 1
+            self.consecutive_losses += 1
+            self.consecutive_wins = 0
+            self.max_consecutive_losses = max(self.max_consecutive_losses, self.consecutive_losses)
+            
+        if trade.profit:
+            self.total_profit += trade.profit
+            self.current_balance += trade.profit
+            
+        # Calcular drawdown
+        peak_balance = max(self.initial_balance, self.current_balance)
+        self.current_drawdown = (peak_balance - self.current_balance) / peak_balance * 100
+        self.max_drawdown = max(self.max_drawdown, self.current_drawdown)
+    
+    @property
+    def win_rate(self) -> float:
+        if self.total_trades == 0:
+            return 0.0
+        return (self.winning_trades / self.total_trades) * 100
+    
+    @property
+    def profit_factor(self) -> float:
+        total_wins = sum(t.profit for t in self.trades if t.profit and t.profit > 0)
+        total_losses = abs(sum(t.profit for t in self.trades if t.profit and t.profit < 0))
+        if total_losses == 0:
+            return float('inf') if total_wins > 0 else 0
+        return total_wins / total_losses
+
+# ============================================================================
+# ANÁLISIS TÉCNICO MEJORADO
+# ============================================================================
+
+class TechnicalAnalysis:
+    """Clase para cálculo de indicadores técnicos"""
+    
+    @staticmethod
+    def calculate_sma(data: List[float], period: int) -> float:
+        """Media móvil simple"""
+        if len(data) < period:
+            return None
+        return sum(data[-period:]) / period
+    
+    @staticmethod
+    def calculate_ema(data: List[float], period: int) -> float:
+        """Media móvil exponencial"""
+        if len(data) < period:
+            return None
+        
+        multiplier = 2 / (period + 1)
+        ema = sum(data[:period]) / period
+        
+        for price in data[period:]:
+            ema = (price - ema) * multiplier + ema
+        
+        return ema
+    
+    @staticmethod
+    def calculate_rsi(data: List[float], period: int = 14) -> float:
+        """Índice de fuerza relativa"""
+        if len(data) < period + 1:
+            return None
+        
+        gains = []
+        losses = []
+        
+        for i in range(1, len(data)):
+            change = data[i] - data[i-1]
+            if change > 0:
+                gains.append(change)
+                losses.append(0)
+            else:
+                gains.append(0)
+                losses.append(abs(change))
+        
+        avg_gain = sum(gains[-period:]) / period
+        avg_loss = sum(losses[-period:]) / period
+        
+        if avg_loss == 0:
+            return 100
+        
+        rs = avg_gain / avg_loss
+        rsi = 100 - (100 / (1 + rs))
+        
+        return rsi
+    
+    @staticmethod
+    def calculate_bollinger_bands(data: List[float], period: int = 20, std_dev: int = 2) -> Tuple[float, float, float]:
+        """Bandas de Bollinger"""
+        if len(data) < period:
+            return None, None, None
+        
+        sma = sum(data[-period:]) / period
+        variance = sum((x - sma) ** 2 for x in data[-period:]) / period
+        std = math.sqrt(variance)
+        
+        upper_band = sma + (std * std_dev)
+        lower_band = sma - (std * std_dev)
+        
+        return upper_band, sma, lower_band
+    
+    @staticmethod
+    def calculate_macd(data: List[float], fast: int = 12, slow: int = 26, signal: int = 9) -> Tuple[float, float, float]:
+        """MACD"""
+        if len(data) < slow + signal:
+            return None, None, None
+        
+        ema_fast = TechnicalAnalysis.calculate_ema(data, fast)
+        ema_slow = TechnicalAnalysis.calculate_ema(data, slow)
+        
+        if ema_fast is None or ema_slow is None:
+            return None, None, None
+        
+        macd_line = ema_fast - ema_slow
+        
+        # Calcular línea de señal
+        macd_values = []
+        for i in range(slow, len(data)):
+            ema_f = TechnicalAnalysis.calculate_ema(data[:i+1], fast)
+            ema_s = TechnicalAnalysis.calculate_ema(data[:i+1], slow)
+            if ema_f and ema_s:
+                macd_values.append(ema_f - ema_s)
+        
+        signal_line = TechnicalAnalysis.calculate_ema(macd_values, signal)
+        histogram = macd_line - signal_line if signal_line else None
+        
+        return macd_line, signal_line, histogram
+    
+    @staticmethod
+    def calculate_stochastic(high: List[float], low: List[float], close: List[float], period: int = 14) -> Tuple[float, float]:
+        """Oscilador estocástico"""
+        if len(high) < period or len(low) < period or len(close) < period:
+            return None, None
+        
+        lowest_low = min(low[-period:])
+        highest_high = max(high[-period:])
+        
+        if highest_high == lowest_low:
+            return 50, 50
+        
+        k = ((close[-1] - lowest_low) / (highest_high - lowest_low)) * 100
+        
+        # %D es el SMA de 3 períodos de %K
+        k_values = []
+        for i in range(period, len(close)):
+            ll = min(low[i-period+1:i+1])
+            hh = max(high[i-period+1:i+1])
+            if hh != ll:
+                k_val = ((close[i] - ll) / (hh - ll)) * 100
+                k_values.append(k_val)
+        
+        d = sum(k_values[-3:]) / 3 if len(k_values) >= 3 else k
+        
+        return k, d
+    
+    @staticmethod
+    def find_support_resistance(data: List[float], window: int = 20) -> Tuple[List[float], List[float]]:
+        """Encuentra niveles de soporte y resistencia"""
+        if len(data) < window * 2:
+            return [], []
+        
+        supports = []
+        resistances = []
+        
+        for i in range(window, len(data) - window):
+            # Buscar mínimos locales (soportes)
+            if all(data[i] <= data[j] for j in range(i - window, i + window + 1)):
+                supports.append(data[i])
+            
+            # Buscar máximos locales (resistencias)
+            if all(data[i] >= data[j] for j in range(i - window, i + window + 1)):
+                resistances.append(data[i])
+        
+        # Agrupar niveles cercanos
+        def group_levels(levels, threshold=0.001):
+            if not levels:
+                return []
+            
+            grouped = []
+            levels.sort()
+            current_group = [levels[0]]
+            
+            for level in levels[1:]:
+                if abs(level - current_group[-1]) / current_group[-1] < threshold:
+                    current_group.append(level)
+                else:
+                    grouped.append(sum(current_group) / len(current_group))
+                    current_group = [level]
+            
+            grouped.append(sum(current_group) / len(current_group))
+            return grouped
+        
+        return group_levels(supports), group_levels(resistances)
+
+# ============================================================================
+# GESTIÓN DE RIESGO AVANZADA
+# ============================================================================
+
+class RiskManager:
+    """Gestión avanzada de riesgo y tamaño de posiciones"""
+    
+    def __init__(self, initial_balance: float, risk_level: RiskLevel):
+        self.initial_balance = initial_balance
+        self.current_balance = initial_balance
+        self.risk_level = risk_level
+        self.max_risk_per_trade = self._get_max_risk_percentage()
+        self.max_daily_loss = self._get_max_daily_loss()
+        self.daily_loss = 0.0
+        self.trade_history = deque(maxlen=100)
+        
+    def _get_max_risk_percentage(self) -> float:
+        """Obtiene el porcentaje máximo de riesgo por operación"""
+        risk_map = {
+            RiskLevel.CONSERVATIVE: 0.01,      # 1%
+            RiskLevel.MODERATE: 0.025,         # 2.5%
+            RiskLevel.AGGRESSIVE: 0.05,        # 5%
+            RiskLevel.VERY_AGGRESSIVE: 0.1     # 10%
+        }
+        return risk_map.get(self.risk_level, 0.02)
+    
+    def _get_max_daily_loss(self) -> float:
+        """Obtiene la pérdida máxima diaria permitida"""
+        loss_map = {
+            RiskLevel.CONSERVATIVE: 0.05,      # 5%
+            RiskLevel.MODERATE: 0.10,          # 10%
+            RiskLevel.AGGRESSIVE: 0.20,        # 20%
+            RiskLevel.VERY_AGGRESSIVE: 0.30    # 30%
+        }
+        return self.initial_balance * loss_map.get(self.risk_level, 0.10)
+    
+    def calculate_position_size(self, confidence: float, money_management: MoneyManagement, 
+                              consecutive_losses: int = 0, win_rate: float = 0.5) -> float:
+        """Calcula el tamaño óptimo de la posición"""
+        
+        # Verificar límite diario
+        if self.daily_loss >= self.max_daily_loss:
+            logger.warning("Límite de pérdida diaria alcanzado")
+            return 0
+        
+        base_amount = self.current_balance * self.max_risk_per_trade
+        
+        if money_management == MoneyManagement.FIXED_AMOUNT:
+            return min(base_amount, self.current_balance * 0.05)
+        
+        elif money_management == MoneyManagement.PERCENTAGE:
+            # Ajustar por confianza
+            confidence_multiplier = confidence / 100
+            return base_amount * confidence_multiplier
+        
+        elif money_management == MoneyManagement.MARTINGALE:
+            # Martingala con límites
+            max_multiplier = 8  # Máximo 3 duplicaciones
+            multiplier = min(2 ** consecutive_losses, max_multiplier)
+            amount = base_amount * multiplier
+            
+            # Limitar al 10% del balance
+            return min(amount, self.current_balance * 0.10)
+        
+        elif money_management == MoneyManagement.ANTI_MARTINGALE:
+            # Anti-martingala: aumentar después de ganar
+            if consecutive_losses > 0:
+                return base_amount * 0.5
+            else:
+                return base_amount * 1.5
+        
+        elif money_management == MoneyManagement.FIBONACCI:
+            # Secuencia de Fibonacci
+            fib_sequence = [1, 1, 2, 3, 5, 8, 13, 21]
+            index = min(consecutive_losses, len(fib_sequence) - 1)
+            multiplier = fib_sequence[index]
+            amount = base_amount * multiplier
+            
+            return min(amount, self.current_balance * 0.10)
+        
+        elif money_management == MoneyManagement.KELLY_CRITERION:
+            # Criterio de Kelly
+            if win_rate <= 0 or win_rate >= 1:
+                return base_amount
+            
+            # Asumiendo payout de 0.8 (80%)
+            payout = 0.8
+            kelly_percentage = (payout * win_rate - (1 - win_rate)) / payout
+            
+            # Aplicar fracción de Kelly (25%) para ser más conservador
+            kelly_fraction = 0.25
+            amount = self.current_balance * kelly_percentage * kelly_fraction
+            
+            # Limitar entre 1% y 5% del balance
+            return max(min(amount, self.current_balance * 0.05), self.current_balance * 0.01)
+        
+        return base_amount
+    
+    def update_balance(self, profit: float):
+        """Actualiza el balance y estadísticas"""
+        self.current_balance += profit
+        if profit < 0:
+            self.daily_loss += abs(profit)
+        
+        self.trade_history.append({
+            'profit': profit,
+            'balance': self.current_balance,
+            'timestamp': datetime.datetime.now()
+        })
+    
+    def reset_daily_limits(self):
+        """Reinicia los límites diarios"""
+        self.daily_loss = 0.0
+    
+    def should_stop_trading(self, consecutive_losses: int) -> bool:
+        """Determina si se debe detener el trading"""
+        if self.daily_loss >= self.max_daily_loss:
+            return True
+        
+        if self.current_balance <= self.initial_balance * 0.5:
+            return True
+        
+        max_consecutive_losses = {
+            RiskLevel.CONSERVATIVE: 3,
+            RiskLevel.MODERATE: 5,
+            RiskLevel.AGGRESSIVE: 7,
+            RiskLevel.VERY_AGGRESSIVE: 10
+        }
+        
+        if consecutive_losses >= max_consecutive_losses.get(self.risk_level, 5):
+            return True
+        
+        return False
+
+# ============================================================================
+# BOT DE TRADING MEJORADO
+# ============================================================================
+
+class AdvancedBinaryBot:
+    """Bot de trading avanzado para opciones binarias"""
+    
+    def __init__(self, iq_api, config: Dict[str, Any], email: str):
+        self.iq_api = iq_api
+        self.config = config
+        self.email = email
+        self.running = False
+        self.thread = None
+        
+        # Configuración de trading
+        self.symbol = config.get('symbol', 'EURUSD')
+        self.strategies = [Strategy(s) for s in config.get('strategies', ['support_resistance'])]
+        self.money_management = MoneyManagement(config.get('money_management', 'percentage'))
+        self.risk_level = RiskLevel(config.get('risk_level', 'moderate'))
+        
+        # Gestión de riesgo
+        initial_balance = config.get('initial_balance', 1000)
+        self.risk_manager = RiskManager(initial_balance, self.risk_level)
+        
+        # Sesión de trading
+        self.session = TradingSession(
+            start_time=datetime.datetime.now(),
+            initial_balance=initial_balance,
+            current_balance=initial_balance
+        )
+        
+        # Datos de mercado
+        self.candles_data = {
+            60: deque(maxlen=500),     # 1 minuto
+            300: deque(maxlen=200),    # 5 minutos
+            900: deque(maxlen=100),    # 15 minutos
+            1800: deque(maxlen=50)     # 30 minutos
+        }
+        
+        # WebSocket para datos en tiempo real
+        self.ws_running = False
+        self.ws_thread = None
+        
+        # Control de operaciones
+        self.min_time_between_trades = 30  # segundos
+        self.last_trade_time = None
+        self.pending_signals = deque(maxlen=10)
+        
+        # Límites configurables
+        self.max_consecutive_losses = config.get('max_consecutive_losses', 5)
+        self.max_consecutive_wins = config.get('max_consecutive_wins', 0)
+        self.max_daily_trades = config.get('max_daily_trades', 20)
+        self.stop_on_profit = config.get('stop_on_profit', 0)
+        self.stop_on_loss = config.get('stop_on_loss', 0)
+        
+        logger.info(f"Bot inicializado para {email} con estrategias: {[s.value for s in self.strategies]}")
+    
+    def start(self):
+        """Iniciar bot de trading"""
+        if self.running:
+            logger.warning("El bot ya está en ejecución")
+            return
+        
+        self.running = True
+        self.session.start_time = datetime.datetime.now()
+        
+        # Iniciar recolección de datos
+        self._start_data_collection()
+        
+        # Iniciar thread principal del bot
+        self.thread = Thread(target=self._run, daemon=True)
+        self.thread.start()
+        
+        logger.info(f"🚀 Bot iniciado exitosamente para {self.email}")
+        self._send_telegram_notification(
+            f"🚀 *BOT INICIADO*\n"
+            f"👤 Usuario: {self.email}\n"
+            f"📈 Estrategias: {', '.join([s.value for s in self.strategies])}\n"
+            f"💰 Balance
