@@ -1,4 +1,1322 @@
-# main.py - Backend Profesional para Bot de Opciones Binarias IQ Option
+message += f"🎯 Win Rate: {self.session.win_rate:.1f}%\n"
+        message += f"💰 Profit: {'+'if self.session.total_profit >= 0 else ''}${self.session.total_profit:.2f}\n"
+        message += f"💵 Balance Final: ${self.session.current_balance:.2f}\n"
+        message += f"📉 Max Drawdown: {self.session.max_drawdown:.1f}%\n"
+        message += f"🔥 Rachas: {self.session.max_consecutive_wins}W / {self.session.max_consecutive_losses}L"
+        
+        self._send_telegram_notification(message)
+    
+    def get_status(self) -> Dict[str, Any]:
+        """Obtiene el estado actual del bot"""
+        return {
+            'running': self.running,
+            'email': self.email,
+            'symbol': self.symbol,
+            'strategies': [s.value for s in self.strategies],
+            'session': {
+                'start_time': self.session.start_time.isoformat(),
+                'total_trades': self.session.total_trades,
+                'winning_trades': self.session.winning_trades,
+                'losing_trades': self.session.losing_trades,
+                'win_rate': self.session.win_rate,
+                'total_profit': self.session.total_profit,
+                'current_balance': self.session.current_balance,
+                'consecutive_wins': self.session.consecutive_wins,
+                'consecutive_losses': self.session.consecutive_losses,
+                'max_drawdown': self.session.max_drawdown
+            },
+            'risk_manager': {
+                'current_balance': self.risk_manager.current_balance,
+                'daily_loss': self.risk_manager.daily_loss,
+                'max_daily_loss': self.risk_manager.max_daily_loss
+            }
+        }
+
+# ============================================================================
+# FUNCIONES AUXILIARES
+# ============================================================================
+
+def send_telegram_message(message: str):
+    """Envía mensaje a Telegram (función global para compatibilidad)"""
+    bot = AdvancedBinaryBot(None, {}, "system")
+    bot._send_telegram_notification(message)
+
+def require_auth(f):
+    """Decorador para autenticación"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_email' not in session:
+            return jsonify({"error": "No autorizado", "code": "AUTH_REQUIRED"}), 401
+        
+        email = session['user_email']
+        with sessions_lock:
+            if email not in user_sessions:
+                session.clear()
+                return jsonify({"error": "Sesión expirada", "code": "SESSION_EXPIRED"}), 401
+        
+        return f(*args, **kwargs)
+    return decorated_function
+
+# ============================================================================
+# WEBSOCKET EVENTS (SOCKETIO)
+# ============================================================================
+
+@socketio.on('connect')
+def handle_connect():
+    """Maneja conexión de WebSocket"""
+    if 'user_email' in session:
+        email = session['user_email']
+        join_room(email)
+        logger.info(f"WebSocket conectado para {email}")
+        emit('connected', {'status': 'connected'})
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    """Maneja desconexión de WebSocket"""
+    if 'user_email' in session:
+        email = session['user_email']
+        leave_room(email)
+        logger.info(f"WebSocket desconectado para {email}")
+
+@socketio.on('subscribe_candles')
+def handle_subscribe_candles(data):
+    """Suscribe a actualizaciones de velas"""
+    if 'user_email' in session:
+        email = session['user_email']
+        symbol = data.get('symbol', 'EURUSD')
+        
+        with data_lock:
+            if email not in market_data_streams:
+                market_data_streams[email] = set()
+            market_data_streams[email].add(symbol)
+        
+        emit('subscription_confirmed', {'symbol': symbol})
+
+@socketio.on('unsubscribe_candles')
+def handle_unsubscribe_candles(data):
+    """Cancela suscripción a velas"""
+    if 'user_email' in session:
+        email = session['user_email']
+        symbol = data.get('symbol', 'EURUSD')
+        
+        with data_lock:
+            if email in market_data_streams:
+                market_data_streams[email].discard(symbol)
+
+# ============================================================================
+# ENDPOINTS API REST
+# ============================================================================
+
+@app.after_request
+def after_request(response):
+    """Headers CORS"""
+    origin = request.headers.get('Origin')
+    
+    if origin in FRONTEND_DOMAINS:
+        response.headers['Access-Control-Allow-Origin'] = origin
+    elif origin and origin.startswith('http://localhost'):
+        response.headers['Access-Control-Allow-Origin'] = origin
+    else:
+        response.headers['Access-Control-Allow-Origin'] = 'https://iqoptionbot.ct.ws'
+    
+    response.headers['Access-Control-Allow-Credentials'] = 'true'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept, Origin'
+    response.headers['Access-Control-Max-Age'] = '3600'
+    
+    return response
+
+@app.route('/', methods=['GET'])
+def index():
+    """Página principal"""
+    return '''<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bot Profesional de Opciones Binarias - IQ Option</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 50px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 900px;
+            width: 100%;
+            backdrop-filter: blur(10px);
+        }
+        
+        h1 {
+            color: #1e3c72;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        h2 {
+            color: #2a5298;
+            font-size: 1.5em;
+            margin-bottom: 30px;
+            text-align: center;
+            font-weight: 400;
+        }
+        
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 40px 0;
+        }
+        
+        .status-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+        
+        .status-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .status-card h3 {
+            color: #1e3c72;
+            margin-bottom: 10px;
+        }
+        
+        .status-card .value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #2a5298;
+        }
+        
+        .status-card.active {
+            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+        }
+        
+        .endpoints {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 30px;
+            margin-top: 40px;
+        }
+        
+        .endpoints h3 {
+            color: #1e3c72;
+            margin-bottom: 20px;
+        }
+        
+        .endpoints ul {
+            list-style: none;
+        }
+        
+        .endpoints li {
+            padding: 10px;
+            border-left: 3px solid #2a5298;
+            margin-bottom: 10px;
+            background: white;
+            border-radius: 0 5px 5px 0;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 30px 0;
+        }
+        
+        .feature {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .feature-icon {
+            width: 24px;
+            height: 24px;
+            background: #2a5298;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 40px;
+        }
+        
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            display: inline-block;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: white;
+            color: #1e3c72;
+            border: 2px solid #1e3c72;
+        }
+        
+        .btn-secondary:hover {
+            background: #1e3c72;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Bot Profesional de Opciones Binarias</h1>
+        <h2>Sistema Avanzado de Trading Automatizado para IQ Option</h2>
+        
+        <div class="status-grid">
+            <div class="status-card active">
+                <h3>Estado del Sistema</h3>
+                <div class="value">✅ Operativo</div>
+            </div>
+            <div class="status-card">
+                <h3>IQ Option API</h3>
+                <div class="value">''' + ('✅ Conectada' if IQ_AVAILABLE else '⚠️ Simulación') + '''</div>
+            </div>
+            <div class="status-card">
+                <h3>WebSocket</h3>
+                <div class="value">✅ Activo</div>
+            </div>
+            <div class="status-card">
+                <h3>Estrategias</h3>
+                <div class="value">10 Activas</div>
+            </div>
+        </div>
+        
+        <div class="features">
+            <div class="feature">
+                <div class="feature-icon">✓</div>
+                <span>10 Estrategias Profesionales</span>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">✓</div>
+                <span>Gestión de Riesgo Avanzada</span>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">✓</div>
+                <span>6 Métodos de Money Management</span>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">✓</div>
+                <span>Análisis Técnico en Tiempo Real</span>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">✓</div>
+                <span>WebSocket para Gráficos en Vivo</span>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">✓</div>
+                <span>Notificaciones Telegram</span>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">✓</div>
+                <span>Límites Configurables</span>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">✓</div>
+                <span>Multi-Timeframe</span>
+            </div>
+        </div>
+        
+        <div class="endpoints">
+            <h3>📡 API Endpoints Disponibles:</h3>
+            <ul>
+                <li>POST /api/login - Autenticación con IQ Option</li>
+                <li>GET /api/strategies - Lista de estrategias disponibles</li>
+                <li>GET /api/risk-levels - Niveles de riesgo</li>
+                <li>POST /api/start_bot - Iniciar bot con configuración</li>
+                <li>POST /api/stop_bot - Detener bot</li>
+                <li>GET /api/bot_status - Estado actual del bot</li>
+                <li>GET /api/live_data - Datos en tiempo real</li>
+                <li>GET /api/trading_history - Historial de operaciones</li>
+                <li>GET /api/performance - Métricas de rendimiento</li>
+                <li>POST /api/update_config - Actualizar configuración</li>
+                <li>WS /socket.io - WebSocket para datos en vivo</li>
+            </ul>
+        </div>
+        
+        <div class="buttons">
+            <a href="/health" class="btn btn-secondary">Health Check</a>
+            <a href="/api/strategies" class="btn btn-primary">Ver Estrategias</a>
+        </div>
+    </div>
+</body>
+</html>''', 200, {'Content-Type': 'text/html'}
+
+@app.route('/health', methods=['GET'])
+@cross_origin(origins=FRONTEND_DOMAINS)
+def health_check():
+    """Health check del sistema"""
+    try:
+        # Calcular estadísticas
+        active_sessions = len(user_sessions)
+        active_bots_count = len([b for b in active_bots.values() if b.running])
+        total_bots = len(active_bots)
+        
+        health_data = {
+            "status": "healthy",
+            "timestamp": datetime.datetime.now().isoformat(),
+            "version": "2.0.0",
+            "environment": "production" if IQ_AVAILABLE else "simulation",
+            "features": {
+                "iqoption_api": IQ_AVAILABLE,
+                "websocket": True,
+                "telegram": bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID),
+                "real_time_data": True,
+                "multi_strategy": True,
+                "risk_management": True,
+                "money_management": True
+            },
+            "statistics": {
+                "active_sessions": active_sessions,
+                "active_bots": active_bots_count,
+                "total_bots": total_bots,
+                "strategies_available": len(STRATEGY_CONFIG),
+                "risk_levels": len(RiskLevel),
+                "money_management_methods": len(MoneyManagement)
+            },
+            "endpoints": {
+                "rest_api": "operational",
+                "websocket": "operational",
+                "cors": {
+                    "enabled": True,
+                    "allowed_origins": FRONTEND_DOMAINS
+                }
+            }
+        }
+        
+        return jsonify(health_data), 200
+        
+    except Exception as e:
+        logger.error(f"Error en health check: {e}")
+        return jsonify({
+            "status": "error",
+            "timestamp": datetime.datetime.now().isoformat(),
+            "error": str(e)
+        }), 500
+
+@app.route('/api/login', methods=['POST', 'OPTIONS'])
+@cross_origin(origins=FRONTEND_DOMAINS)
+@limiter.limit("10 per minute")
+def login():
+    """Login con IQ Option"""
+    if request.method == 'OPTIONS':
+        return '', 204
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "message": "No se recibieron datos"}), 400
+        
+        email = data.get('email', '').strip()
+        password = data.get('password', '')
+        
+        if not email or not password:
+            return jsonify({"success": False, "message": "Email y contraseña requeridos"}), 400
+        
+        logger.info(f"Intento de login: {email}")
+        
+        # Limpiar sesión anterior
+        with sessions_lock:
+            if email in user_sessions:
+                try:
+                    if IQ_AVAILABLE and hasattr(user_sessions[email], 'close_websocket'):
+                        user_sessions[email].close_websocket()
+                except:
+                    pass
+                del user_sessions[email]
+        
+        # Detener bot anterior si existe
+        with bots_lock:
+            if email in active_bots:
+                active_bots[email].stop()
+                del active_bots[email]
+        
+        # Conectar con IQ Option
+        balance = 1000.0  # Default para simulación
+        account_type = "PRACTICE"
+        
+        if IQ_AVAILABLE:
+            try:
+                iq = IQ_Option(email, password)
+                check, reason = iq.connect()
+                
+                if not check:
+                    return jsonify({
+                        "success": False,
+                        "message": f"Error de autenticación: {reason}"
+                    }), 401
+                
+                balance = iq.get_balance()
+                account_type = iq.get_balance_mode()
+                
+                # Guardar sesión
+                with sessions_lock:
+                    user_sessions[email] = iq
+                    
+            except Exception as e:
+                logger.error(f"Error conectando con IQ Option: {e}")
+                return jsonify({
+                    "success": False,
+                    "message": f"Error de conexión: {str(e)}"
+                }), 503
+        else:
+            # Modo simulación
+            logger.info("Ejecutando en modo simulación")
+            with sessions_lock:
+                user_sessions[email] = {"simulation": True}
+        
+        # Establecer sesión
+        session['user_email'] = email
+        session.permanent = True
+        
+        # Notificar login exitoso
+        send_telegram_message(
+            f"🎯 *LOGIN EXITOSO*\n"
+            f"👤 Usuario: {email}\n"
+            f"💰 Balance: ${balance:.2f}\n"
+            f"🏦 Cuenta: {account_type}\n"
+            f"🔧 Modo: {'Real' if IQ_AVAILABLE else 'Simulación'}"
+        )
+        
+        return jsonify({
+            "success": True,
+            "user": {
+                "email": email,
+                "name": email.split('@')[0].title(),
+                "balance": balance,
+                "account_type": account_type,
+                "currency": "USD"
+            },
+            "features": {
+                "real_trading": IQ_AVAILABLE,
+                "websocket": True,
+                "strategies": len(STRATEGY_CONFIG),
+                "risk_levels": [r.value for r in RiskLevel],
+                "money_management": [m.value for m in MoneyManagement]
+            },
+            "message": f"Bienvenido - Modo {'Real' if IQ_AVAILABLE else 'Simulación'}"
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error en login: {e}")
+        return jsonify({
+            "success": False,
+            "message": "Error interno del servidor"
+        }), 500
+
+@app.route('/api/strategies', methods=['GET'])
+@cross_origin(origins=FRONTEND_DOMAINS)
+@require_auth
+def get_strategies():
+    """Obtener todas las estrategias disponibles"""
+    try:
+        strategies = []
+        
+        for strategy, config in STRATEGY_CONFIG.items():
+            strategies.append({
+                "id": strategy.value,
+                "name": config["name"],
+                "description": config["description"],
+                "risk_level": config["risk_level"].value,
+                "timeframes": config["timeframes"],
+                "min_confidence": config["min_confidence"],
+                "indicators": config["indicators"],
+                "expected_win_rate": config["expected_win_rate"],
+                "avg_trades_per_hour": config["avg_trades_per_hour"],
+                "best_sessions": config["best_sessions"],
+                "avoid_news": config["avoid_news"]
+            })
+        
+        # Agrupar por nivel de riesgo
+        grouped = {}
+        for strategy in strategies:
+            risk_level = strategy["risk_level"]
+            if risk_level not in grouped:
+                grouped[risk_level] = []
+            grouped[risk_level].append(strategy)
+        
+        return jsonify({
+            "strategies": strategies,
+            "grouped_by_risk": grouped,
+            "total": len(strategies),
+            "risk_levels": [
+                {
+                    "id": r.value,
+                    "name": r.value.replace('_', ' ').title(),
+                    "description": {
+                        "conservative": "Bajo riesgo, 1-2% por operación",
+                        "moderate": "Riesgo moderado, 2-5% por operación",
+                        "aggressive": "Alto riesgo, 5-10% por operación",
+                        "very_aggressive": "Muy alto riesgo, 10%+ por operación"
+                    }.get(r.value, "")
+                } for r in RiskLevel
+            ]
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo estrategias: {e}")
+        return jsonify({"error": "Error obteniendo estrategias"}), 500
+
+@app.route('/api/risk-levels', methods=['GET'])
+@cross_origin(origins=FRONTEND_DOMAINS)
+def get_risk_levels():
+    """Obtener niveles de riesgo disponibles"""
+    risk_levels = [
+        {
+            "id": RiskLevel.CONSERVATIVE.value,
+            "name": "Conservador",
+            "description": "Ideal para principiantes",
+            "max_risk_per_trade": "1-2%",
+            "max_daily_loss": "5%",
+            "recommended_for": "Traders principiantes o con aversión al riesgo"
+        },
+        {
+            "id": RiskLevel.MODERATE.value,
+            "name": "Moderado",
+            "description": "Balance entre riesgo y recompensa",
+            "max_risk_per_trade": "2-5%",
+            "max_daily_loss": "10%",
+            "recommended_for": "Traders con experiencia media"
+        },
+        {
+            "id": RiskLevel.AGGRESSIVE.value,
+            "name": "Agresivo",
+            "description": "Para traders experimentados",
+            "max_risk_per_trade": "5-10%",
+            "max_daily_loss": "20%",
+            "recommended_for": "Traders experimentados con alta tolerancia al riesgo"
+        },
+        {
+            "id": RiskLevel.VERY_AGGRESSIVE.value,
+            "name": "Muy Agresivo",
+            "description": "Alto riesgo, alta recompensa",
+            "max_risk_per_trade": "10%+",
+            "max_daily_loss": "30%",
+            "recommended_for": "Solo para expertos con capital que pueden perder"
+        }
+    ]
+    
+    return jsonify({"risk_levels": risk_levels}), 200
+
+@app.route('/api/start_bot', methods=['POST'])
+@cross_origin(origins=FRONTEND_DOMAINS)
+@require_auth
+@limiter.limit("5 per minute")
+def start_bot():
+    """Iniciar bot de trading"""
+    try:
+        email = session['user_email']
+        
+        # Verificar si ya hay un bot activo
+        with bots_lock:
+            if email in active_bots and active_bots[email].running:
+                return jsonify({
+                    "success": False,
+                    "message": "Ya hay un bot activo para esta cuenta"
+                }), 400
+        
+        data = request.get_json()
+        
+        # Validar configuración
+        config = {
+            'symbol': data.get('symbol', 'EURUSD'),
+            'strategies': data.get('strategies', ['support_resistance']),
+            'risk_level': data.get('risk_level', 'moderate'),
+            'money_management': data.get('money_management', 'percentage'),
+            'account_type': data.get('account_type', 'PRACTICE'),
+            'initial_balance': 1000.0,  # Se actualizará con el balance real
+            'max_consecutive_losses': int(data.get('max_consecutive_losses', 5)),
+            'max_consecutive_wins': int(data.get('max_consecutive_wins', 0)),
+            'max_daily_trades': int(data.get('max_daily_trades', 20)),
+            'stop_on_profit': float(data.get('stop_on_profit', 0)),
+            'stop_on_loss': float(data.get('stop_on_loss', 0))
+        }
+        
+        # Validar estrategias
+        valid_strategies = [s.value for s in Strategy]
+        for strategy in config['strategies']:
+            if strategy not in valid_strategies:
+                return jsonify({
+                    "success": False,
+                    "message": f"Estrategia inválida: {strategy}"
+                }), 400
+        
+        # Obtener API de IQ Option
+        iq_api = None
+        with sessions_lock:
+            if email in user_sessions:
+                iq_api = user_sessions[email]
+        
+        # Obtener balance actual
+        if IQ_AVAILABLE and iq_api and hasattr(iq_api, 'get_balance'):
+            try:
+                config['initial_balance'] = iq_api.get_balance()
+            except:
+                pass
+        
+        # Crear y configurar bot
+        bot = AdvancedBinaryBot(iq_api, config, email)
+        
+        # Guardar referencia del bot
+        with bots_lock:
+            active_bots[email] = bot
+        
+        # Iniciar bot
+        bot.start()
+        
+        return jsonify({
+            "success": True,
+            "message": "Bot iniciado exitosamente",
+            "config": {
+                "symbol": config['symbol'],
+                "strategies": config['strategies'],
+                "risk_level": config['risk_level'],
+                "money_management": config['money_management'],
+                "initial_balance": config['initial_balance'],
+                "limits": {
+                    "max_consecutive_losses": config['max_consecutive_losses'],
+                    "max_consecutive_wins": config['max_consecutive_wins'],
+                    "max_daily_trades": config['max_daily_trades'],
+                    "stop_on_profit": config['stop_on_profit'],
+                    "stop_on_loss": config['stop_on_loss']
+                }
+            }
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error iniciando bot: {e}")
+        return jsonify({
+            "success": False,
+            "message": f"Error iniciando bot: {str(e)}"
+        }), 500
+
+@app.route('/api/stop_bot', methods=['POST'])
+@cross_origin(origins=FRONTEND_DOMAINS)
+@require_auth
+def stop_bot():
+    """Detener bot de trading"""
+    try:
+        email = session['user_email']
+        
+        with bots_lock:
+            if email in active_bots:
+                bot = active_bots[email]
+                status = bot.get_status()
+                bot.stop()
+                del active_bots[email]
+                
+                return jsonify({
+                    "success": True,
+                    "message": "Bot detenido exitosamente",
+                    "final_stats": status['session']
+                }), 200
+            else:
+                return jsonify({
+                    "success": False,
+                    "message": "No hay bot activo"
+                }), 404
+                
+    except Exception as e:
+        logger.error(f"Error deteniendo bot: {e}")
+        return jsonify({
+            "success": False,
+            "message": f"Error: {str(e)}"
+        }), 500
+
+@app.route('/api/bot_status', methods=['GET'])
+@cross_origin(origins=FRONTEND_DOMAINS)
+@require_auth
+def bot_status():
+    """Obtener estado del bot"""
+    try:
+        email = session['user_email']
+        
+        with bots_lock:
+            if email in active_bots and active_bots[email].running:
+                bot = active_bots[email]
+                return jsonify({
+                    "success": True,
+                    "status": bot.get_status()
+                }), 200
+            else:
+                return jsonify({
+                    "success": True,
+                    "status": {
+                        "running": False,
+                        "message": "No hay bot activo"
+                    }
+                }), 200
+                
+    except Exception as e:
+        logger.error(f"Error obteniendo estado: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/live_data', methods=['GET'])
+@cross_origin(origins=FRONTEND_DOMAINS)
+@require_auth
+def get_live_data():
+    """Obtener datos en tiempo real del bot"""
+    try:
+        email = session['user_email']
+        
+        with bots_lock:
+            if email in active_bots and active_bots[email].running:
+                bot = active_bots[email]
+                
+                # Obtener última vela
+                current_candle = bot._get_current_candle()
+                
+                # Obtener estado del bot
+                status = bot.get_status()
+                
+                # Obtener trades recientes
+                recent_trades = []
+                if hasattr(bot.session, 'trades'):
+                    for trade in bot.session.trades[-10:]:  # Últimos 10 trades
+                        recent_trades.append({
+                            'id': trade.id,
+                            'time': trade.entry_time.isoformat(),
+                            'symbol': trade.symbol,
+                            'direction': trade.direction,
+                            'amount': trade.amount,
+                            'result': trade.result,
+                            'profit': trade.profit
+                        })
+                
+                return jsonify({
+                    "success": True,
+                    "data": {
+                        "current_candle": current_candle,
+                        "bot_status": status,
+                        "recent_trades": recent_trades,
+                        "timestamp": datetime.datetime.now().isoformat()
+                    }
+                }), 200
+            else:
+                return jsonify({
+                    "success": False,
+                    "message": "No hay bot activo"
+                }), 404
+                
+    except Exception as e:
+        logger.error(f"Error obteniendo datos en vivo: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/trading_history', methods=['GET'])
+@cross_origin(origins=FRONTEND_DOMAINS)
+@require_auth
+def get_trading_history():
+    """Obtener historial de trading"""
+    try:
+        email = session['user_email']
+        
+        # Parámetros de paginación
+        page = int(request.args.get('page', 1))
+        per_page = int(request.args.get('per_page', 50))
+        
+        trades = []
+        
+        # Obtener trades del bot activo
+        with bots_lock:
+            if email in active_bots:
+                bot = active_bots[email]
+                if hasattr(bot.session, 'trades'):
+                    for trade in bot.session.trades:
+                        trades.append({
+                            'id': trade.id,
+                            'timestamp': trade.entry_time.isoformat(),
+                            'symbol': trade.symbol,
+                            'direction': trade.direction,
+                            'amount': trade.amount,
+                            'entry_price': trade.entry_price,
+                            'strategy': trade.strategy.value,
+                            'confidence': trade.confidence,
+                            'result': trade.result,
+                            'profit': trade.profit,
+                            'expiry_time': trade.expiry_time
+                        })
+        
+        # Ordenar por timestamp descendente
+        trades.sort(key=lambda x: x['timestamp'], reverse=True)
+        
+        # Paginar
+        start = (page - 1) * per_page
+        end = start + per_page
+        paginated_trades = trades[start:end]
+        
+        return jsonify({
+            "success": True,
+            "trades": paginated_trades,
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total": len(trades),
+                "pages": math.ceil(len(trades) / per_page)
+            }
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo historial: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/performance', methods=['GET'])
+@cross_origin(origins=FRONTEND_DOMAINS)
+@require_auth
+def get_performance():
+    """Obtener métricas de rendimiento"""
+    try:
+        email = session['user_email']
+        
+        performance = {
+            "total_trades": 0,
+            "winning_trades": 0,
+            "losing_trades": 0,
+            "win_rate": 0.0,
+            "total_profit": 0.0,
+            "profit_factor": 0.0,
+            "max_drawdown": 0.0,
+            "sharpe_ratio": 0.0,
+            "average_win": 0.0,
+            "average_loss": 0.0,
+            "best_trade": 0.0,
+            "worst_trade": 0.0,
+            "consecutive_wins": 0,
+            "consecutive_losses": 0,
+            "by_strategy": {},
+            "by_timeframe": {},
+            "daily_performance": []
+        }
+        
+        with bots_lock:
+            if email in active_bots:
+                bot = active_bots[email]
+                session = bot.session
+                
+                performance.update({
+                    "total_trades": session.total_trades,
+                    "winning_trades": session.winning_trades,
+                    "losing_trades": session.losing_trades,
+                    "win_rate": session.win_rate,
+                    "total_profit": session.total_profit,
+                    "profit_factor": session.profit_factor,
+                    "max_drawdown": session.max_drawdown,
+                    "consecutive_wins": session.max_consecutive_wins,
+                    "consecutive_losses": session.max_consecutive_losses
+                })
+                
+                # Calcular promedios
+                if session.trades:
+                    wins = [t.profit for t in session.trades if t.profit and t.profit > 0]
+                    losses = [t.profit for t in session.trades if t.profit and t.profit < 0]
+                    
+                    if wins:
+                        performance["average_win"] = np.mean(wins)
+                        performance["best_trade"] = max(wins)
+                    
+                    if losses:
+                        performance["average_loss"] = np.mean(losses)
+                        performance["worst_trade"] = min(losses)
+                    
+                    # Rendimiento por estrategia
+                    for trade in session.trades:
+                        strategy = trade.strategy.value
+                        if strategy not in performance["by_strategy"]:
+                            performance["by_strategy"][strategy] = {
+                                "trades": 0,
+                                "wins": 0,
+                                "profit": 0.0
+                            }
+                        
+                        performance["by_strategy"][strategy]["trades"] += 1
+                        if trade.result == "win":
+                            performance["by_strategy"][strategy]["wins"] += 1
+                        if trade.profit:
+                            performance["by_strategy"][strategy]["profit"] += trade.profit
+        
+        return jsonify({
+            "success": True,
+            "performance": performance
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo rendimiento: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/update_config', methods=['POST'])
+@cross_origin(origins=FRONTEND_DOMAINS)
+@require_auth
+def update_config():
+    """Actualizar configuración del bot en ejecución"""
+    try:
+        email = session['user_email']
+        data = request.get_json()
+        
+        with bots_lock:
+            if email not in active_bots or not active_bots[email].running:
+                return jsonify({
+                    "success": False,
+                    "message": "No hay bot activo"
+                }), 404
+            
+            bot = active_bots[email]
+            
+            # Actualizar límites
+            if 'max_consecutive_losses' in data:
+                bot.max_consecutive_losses = int(data['max_consecutive_losses'])
+            
+            if 'max_consecutive_wins' in data:
+                bot.max_consecutive_wins = int(data['max_consecutive_wins'])
+            
+            if 'max_daily_trades' in data:
+                bot.max_daily_trades = int(data['max_daily_trades'])
+            
+            if 'stop_on_profit' in data:
+                bot.stop_on_profit = float(data['stop_on_profit'])
+            
+            if 'stop_on_loss' in data:
+                bot.stop_on_loss = float(data['stop_on_loss'])
+            
+            if 'min_time_between_trades' in data:
+                bot.min_time_between_trades = int(data['min_time_between_trades'])
+            
+            # No se pueden cambiar estrategias o risk level en caliente
+            # Requiere reiniciar el bot
+            
+            return jsonify({
+                "success": True,
+                "message": "Configuración actualizada",
+                "updated_config": {
+                    "max_consecutive_losses": bot.max_consecutive_losses,
+                    "max_consecutive_wins": bot.max_consecutive_wins,
+                    "max_daily_trades": bot.max_daily_trades,
+                    "stop_on_profit": bot.stop_on_profit,
+                    "stop_on_loss": bot.stop_on_loss,
+                    "min_time_between_trades": bot.min_time_between_trades
+                }
+            }), 200
+            
+    except Exception as e:
+        logger.error(f"Error actualizando configuración: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/logout', methods=['POST'])
+@cross_origin(origins=FRONTEND_DOMAINS)
+def logout():
+    """Cerrar sesión"""
+    try:
+        email = session.get('user_email')
+        
+        if email:
+            # Detener bot si está activo
+            with bots_lock:
+                if email in active_bots:
+                    active_bots[email].stop()
+                    del active_bots[email]
+            
+            # Cerrar conexión IQ Option
+            with sessions_lock:
+                if email in user_sessions:
+                    if IQ_AVAILABLE and hasattr(user_sessions[email], 'close_websocket'):
+                        try:
+                            user_sessions[email].close_websocket()
+                        except:
+                            pass
+                    del user_sessions[email]
+            
+            # Limpiar datos de mercado
+            with data_lock:
+                if email in market_data_streams:
+                    del market_data_streams[email]
+            
+            # Limpiar sesión
+            session.clear()
+            
+            send_telegram_message(
+                f"👋 *LOGOUT*\n"
+                f"👤 Usuario: {email}\n"
+                f"⏰ {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+        
+        return jsonify({
+            "success": True,
+            "message": "Sesión cerrada exitosamente"
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error en logout: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+# ============================================================================
+# MANEJO DE ERRORES
+# ============================================================================
+
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({
+        "error": "Endpoint no encontrado",
+        "message": "La ruta solicitada no existe",
+        "available_endpoints": [
+            "/health",
+            "/api/login",
+            "/api/strategies",
+            "/api/risk-levels",
+            "/api/start_bot",
+            "/api/stop_bot",
+            "/api/bot_status",
+            "/api/live_data",
+            "/api/trading_history",
+            "/api/performance",
+            "/api/update_config",
+            "/api/logout"
+        ]
+    }), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    logger.error(f"Error interno: {error}")
+    return jsonify({
+        "error": "Error interno del servidor",
+        "message": "Ha ocurrido un error inesperado"
+    }), 500
+
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    return jsonify({
+        "error": "Límite de peticiones excedido",
+        "message": f"Demasiadas peticiones. {e.description}"
+    }), 429
+
+# ============================================================================
+# FUNCIONES DE LIMPIEZA Y MANTENIMIENTO
+# ============================================================================
+
+def cleanup_inactive_sessions():
+    """Limpia sesiones inactivas periódicamente"""
+    while True:
+        try:
+            time.sleep(3600)  # Cada hora
+            
+            with sessions_lock:
+                inactive_emails = []
+                
+                for email, api in list(user_sessions.items()):
+                    # Verificar si la sesión sigue activa
+                    if email not in active_bots:
+                        # No hay bot activo, verificar tiempo de inactividad
+                        inactive_emails.append(email)
+                
+                # Limpiar sesiones inactivas
+                for email in inactive_emails:
+                    logger.info(f"Limpiando sesión inactiva: {email}")
+                    if IQ_AVAILABLE and hasattr(user_sessions[email], 'close_websocket'):
+                        try:
+                            user_sessions[email].close_websocket()
+                        except:
+                            pass
+                    del user_sessions[email]
+                    
+        except Exception as e:
+            logger.error(f"Error en limpieza de sesiones: {e}")
+
+def reset_daily_limits():
+    """Reinicia límites diarios a medianoche"""
+    while True:
+        try:
+            # Calcular tiempo hasta medianoche
+            now = datetime.datetime.now()
+            midnight = now.replace(hour=0, minute=0, second=0, microsecond=0) + datetime.timedelta(days=1)
+            sleep_time = (midnight - now).total_seconds()
+            
+            time.sleep(sleep_time)
+            
+            # Reiniciar límites diarios
+            with bots_lock:
+                for bot in active_bots.values():
+                    bot.risk_manager.reset_daily_limits()
+                    
+            logger.info("Límites diarios reiniciados")
+            
+        except Exception as e:
+            logger.error(f"Error reiniciando límites diarios: {e}")
+
+def graceful_shutdown(signum=None, frame=None):
+    """Cierre ordenado del sistema"""
+    logger.info("🛑 Iniciando cierre ordenado del sistema...")
+    
+    # Detener todos los bots
+    with bots_lock:
+        for email, bot in list(active_bots.items()):
+            try:
+                logger.info(f"Deteniendo bot para {email}")
+                bot.stop()
+            except Exception as e:
+                logger.error(f"Error deteniendo bot {email}: {e}")
+        active_bots.clear()
+    
+    # Cerrar todas las conexiones IQ Option
+    with sessions_lock:
+        for email, api in list(user_sessions.items()):
+            try:
+                if IQ_AVAILABLE and hasattr(api, 'close_websocket'):
+                    logger.info(f"Cerrando conexión para {email}")
+                    api.close_websocket()
+            except Exception as e:
+                logger.error(f"Error cerrando conexión {email}: {e}")
+        user_sessions.clear()
+    
+    logger.info("✅ Sistema cerrado correctamente")
+    
+    # Salir
+    if signum:
+        sys.exit(0)
+
+# Registrar manejadores de señales
+signal.signal(signal.SIGTERM, graceful_shutdown)
+signal.signal(signal.SIGINT, graceful_shutdown)
+atexit.register(lambda: graceful_shutdown())
+
+# THREADS DE MANTENIMIENTO CONDICIONADO PARA RENDER
+def start_maintenance_threads():
+    """Iniciar threads de mantenimiento solo si no es Render"""
+    if not os.environ.get('RENDER'):
+        # Solo en desarrollo local
+        Thread(target=cleanup_inactive_sessions, daemon=True).start()
+        Thread(target=reset_daily_limits, daemon=True).start()
+        logger.info("Threads de mantenimiento iniciados")
+    else:
+        logger.info("Threads de mantenimiento deshabilitados en Render")
+
+# ============================================================================
+# MAIN - PUNTO DE ENTRADA OPTIMIZADO PARA RENDER
+# ============================================================================
+
+# Para producción, este bloque solo muestra información
+port = int(os.environ.get('PORT', 5000))
+
+logger.info("=" * 70)
+logger.info("🎯 BOT PROFESIONAL DE OPCIONES BINARIAS - IQ OPTION V2.0")
+logger.info("=" * 70)
+logger.info(f"📍 Puerto: {port}")
+logger.info(f"🌐 Frontend: https://iqoptionbot.ct.ws")
+logger.info(f"🔧 Modo: {'REAL' if IQ_AVAILABLE else 'SIMULACIÓN'}")
+logger.info(f"📱 Telegram: {'✅ Configurado' if TELEGRAM_BOT_TOKEN else '❌ No configurado'}")
+logger.info(f"📊 Estrategias disponibles: {len(STRATEGY_CONFIG)}")
+logger.info(f"💰 Métodos de gestión de dinero: {len(MoneyManagement)}")
+logger.info(f"⚠️ Niveles de riesgo: {len(RiskLevel)}")
+logger.info("")
+logger.info("✨ CARACTERÍSTICAS PRINCIPALES:")
+logger.info("   • 10 estrategias profesionales de trading")
+logger.info("   • Análisis técnico en tiempo real")
+logger.info("   • WebSocket para datos en vivo y gráficos")
+logger.info("   • 6 métodos de gestión monetaria")
+logger.info("   • 4 niveles de riesgo configurables")
+logger.info("   • Límites automáticos (pérdidas/ganancias/diario)")
+logger.info("   • Notificaciones Telegram en tiempo real")
+logger.info("   • API REST completa + WebSocket")
+logger.info("   • Interfaz para gráficos de velas en tiempo real")
+logger.info("=" * 70)
+
+if not IQ_AVAILABLE:
+    logger.warning("⚠️ MODO SIMULACIÓN ACTIVO")
+    logger.info("Para activar trading real:")
+    logger.info("pip install git+https://github.com/Lu-Yi-Hsun/iqoptionapi.git")
+
+# Notificar inicio
+send_telegram_message(
+    f"🚀 *BACKEND INICIADO*\n"
+    f"🔧 Versión: 2.0.0\n"
+    f"📍 Puerto: {port}\n"
+    f"💻 Modo: {'REAL' if IQ_AVAILABLE else 'SIMULACIÓN'}\n"
+    f"📊 Estrategias: {len(STRATEGY_CONFIG)}\n"
+    f"⏰ {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+)
+
+# CONFIGURACIÓN OPTIMIZADA PARA RENDER
+if __name__ == '__main__':
+    # Detectar si estamos en Render
+    if os.environ.get('RENDER'):
+        # En producción con Render, NO ejecutar socketio.run()
+        # Gunicorn manejará la aplicación
+        logger.info("🚀 Ejecutando en modo producción con Render/Gunicorn")
+        logger.info("⚠️ NO iniciando threads de mantenimiento para evitar loops infinitos")
+        # NO ejecutar socketio.run() aquí
+    else:
+        # En desarrollo local
+        logger.info("🔧 Ejecutando en modo desarrollo")
+        start_maintenance_threads()
+        try:
+            socketio.run(app, host='0.0.0.0', port=port, debug=False)
+        except KeyboardInterrupt:
+            graceful_shutdown()
+else:
+    # Esta es la configuración para Gunicorn en producción
+    logger.info("🚀 Aplicación cargada para Gunicorn en Render")
+    
+    # Para Gunicorn, la aplicación WSGI debe ser accesible
+    # SocketIO se manejará automáticamente
+    application = socketio.wsgi_app# main.py - Backend Profesional para Bot de Opciones Binarias IQ Option
 # Con estrategias mejoradas, gestión de riesgo avanzada y datos en tiempo real
 
 import os
@@ -29,7 +1347,7 @@ logging.basicConfig(
     level=logging.INFO,
     format=log_format,
     handlers=[
-        logging.FileHandler('/tmp/iqoption_bot.log'),
+        logging.FileHandler('/tmp/iqoption_bot.log') if not os.environ.get('RENDER') else logging.StreamHandler(),
         logging.StreamHandler()
     ]
 )
@@ -1444,1303 +2762,3 @@ class AdvancedBinaryBot:
         message += f"📈 Total trades: {self.session.total_trades}\n"
         message += f"✅ Ganadas: {self.session.winning_trades}\n"
         message += f"❌ Perdidas: {self.session.losing_trades}\n"
-        message += f"🎯 Win Rate: {self.session.win_rate:.1f}%\n"
-        message += f"💰 Profit: {'+'if self.session.total_profit >= 0 else ''}${self.session.total_profit:.2f}\n"
-        message += f"💵 Balance Final: ${self.session.current_balance:.2f}\n"
-        message += f"📉 Max Drawdown: {self.session.max_drawdown:.1f}%\n"
-        message += f"🔥 Rachas: {self.session.max_consecutive_wins}W / {self.session.max_consecutive_losses}L"
-        
-        self._send_telegram_notification(message)
-    
-    def get_status(self) -> Dict[str, Any]:
-        """Obtiene el estado actual del bot"""
-        return {
-            'running': self.running,
-            'email': self.email,
-            'symbol': self.symbol,
-            'strategies': [s.value for s in self.strategies],
-            'session': {
-                'start_time': self.session.start_time.isoformat(),
-                'total_trades': self.session.total_trades,
-                'winning_trades': self.session.winning_trades,
-                'losing_trades': self.session.losing_trades,
-                'win_rate': self.session.win_rate,
-                'total_profit': self.session.total_profit,
-                'current_balance': self.session.current_balance,
-                'consecutive_wins': self.session.consecutive_wins,
-                'consecutive_losses': self.session.consecutive_losses,
-                'max_drawdown': self.session.max_drawdown
-            },
-            'risk_manager': {
-                'current_balance': self.risk_manager.current_balance,
-                'daily_loss': self.risk_manager.daily_loss,
-                'max_daily_loss': self.risk_manager.max_daily_loss
-            }
-        }
-
-# ============================================================================
-# FUNCIONES AUXILIARES
-# ============================================================================
-
-def send_telegram_message(message: str):
-    """Envía mensaje a Telegram (función global para compatibilidad)"""
-    bot = AdvancedBinaryBot(None, {}, "system")
-    bot._send_telegram_notification(message)
-
-def require_auth(f):
-    """Decorador para autenticación"""
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_email' not in session:
-            return jsonify({"error": "No autorizado", "code": "AUTH_REQUIRED"}), 401
-        
-        email = session['user_email']
-        with sessions_lock:
-            if email not in user_sessions:
-                session.clear()
-                return jsonify({"error": "Sesión expirada", "code": "SESSION_EXPIRED"}), 401
-        
-        return f(*args, **kwargs)
-    return decorated_function
-
-# ============================================================================
-# WEBSOCKET EVENTS (SOCKETIO)
-# ============================================================================
-
-@socketio.on('connect')
-def handle_connect():
-    """Maneja conexión de WebSocket"""
-    if 'user_email' in session:
-        email = session['user_email']
-        join_room(email)
-        logger.info(f"WebSocket conectado para {email}")
-        emit('connected', {'status': 'connected'})
-
-@socketio.on('disconnect')
-def handle_disconnect():
-    """Maneja desconexión de WebSocket"""
-    if 'user_email' in session:
-        email = session['user_email']
-        leave_room(email)
-        logger.info(f"WebSocket desconectado para {email}")
-
-@socketio.on('subscribe_candles')
-def handle_subscribe_candles(data):
-    """Suscribe a actualizaciones de velas"""
-    if 'user_email' in session:
-        email = session['user_email']
-        symbol = data.get('symbol', 'EURUSD')
-        
-        with data_lock:
-            if email not in market_data_streams:
-                market_data_streams[email] = set()
-            market_data_streams[email].add(symbol)
-        
-        emit('subscription_confirmed', {'symbol': symbol})
-
-@socketio.on('unsubscribe_candles')
-def handle_unsubscribe_candles(data):
-    """Cancela suscripción a velas"""
-    if 'user_email' in session:
-        email = session['user_email']
-        symbol = data.get('symbol', 'EURUSD')
-        
-        with data_lock:
-            if email in market_data_streams:
-                market_data_streams[email].discard(symbol)
-
-# ============================================================================
-# ENDPOINTS API REST
-# ============================================================================
-
-@app.after_request
-def after_request(response):
-    """Headers CORS"""
-    origin = request.headers.get('Origin')
-    
-    if origin in FRONTEND_DOMAINS:
-        response.headers['Access-Control-Allow-Origin'] = origin
-    elif origin and origin.startswith('http://localhost'):
-        response.headers['Access-Control-Allow-Origin'] = origin
-    else:
-        response.headers['Access-Control-Allow-Origin'] = 'https://iqoptionbot.ct.ws'
-    
-    response.headers['Access-Control-Allow-Credentials'] = 'true'
-    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept, Origin'
-    response.headers['Access-Control-Max-Age'] = '3600'
-    
-    return response
-
-@app.route('/', methods=['GET'])
-def index():
-    """Página principal"""
-    return '''<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bot Profesional de Opciones Binarias - IQ Option</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #333;
-        }
-        
-        .container {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
-            padding: 50px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            max-width: 900px;
-            width: 100%;
-            backdrop-filter: blur(10px);
-        }
-        
-        h1 {
-            color: #1e3c72;
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            text-align: center;
-        }
-        
-        h2 {
-            color: #2a5298;
-            font-size: 1.5em;
-            margin-bottom: 30px;
-            text-align: center;
-            font-weight: 400;
-        }
-        
-        .status-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin: 40px 0;
-        }
-        
-        .status-card {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            border-radius: 10px;
-            padding: 20px;
-            text-align: center;
-            transition: transform 0.3s ease;
-        }
-        
-        .status-card:hover {
-            transform: translateY(-5px);
-        }
-        
-        .status-card h3 {
-            color: #1e3c72;
-            margin-bottom: 10px;
-        }
-        
-        .status-card .value {
-            font-size: 1.5em;
-            font-weight: bold;
-            color: #2a5298;
-        }
-        
-        .status-card.active {
-            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
-        }
-        
-        .endpoints {
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 30px;
-            margin-top: 40px;
-        }
-        
-        .endpoints h3 {
-            color: #1e3c72;
-            margin-bottom: 20px;
-        }
-        
-        .endpoints ul {
-            list-style: none;
-        }
-        
-        .endpoints li {
-            padding: 10px;
-            border-left: 3px solid #2a5298;
-            margin-bottom: 10px;
-            background: white;
-            border-radius: 0 5px 5px 0;
-            font-family: 'Courier New', monospace;
-        }
-        
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin: 30px 0;
-        }
-        
-        .feature {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .feature-icon {
-            width: 24px;
-            height: 24px;
-            background: #2a5298;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-        }
-        
-        .buttons {
-            display: flex;
-            gap: 20px;
-            justify-content: center;
-            margin-top: 40px;
-        }
-        
-        .btn {
-            padding: 15px 30px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            text-decoration: none;
-            transition: all 0.3s ease;
-            display: inline-block;
-        }
-        
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
-        }
-        
-        .btn-secondary {
-            background: white;
-            color: #1e3c72;
-            border: 2px solid #1e3c72;
-        }
-        
-        .btn-secondary:hover {
-            background: #1e3c72;
-            color: white;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🎯 Bot Profesional de Opciones Binarias</h1>
-        <h2>Sistema Avanzado de Trading Automatizado para IQ Option</h2>
-        
-        <div class="status-grid">
-            <div class="status-card active">
-                <h3>Estado del Sistema</h3>
-                <div class="value">✅ Operativo</div>
-            </div>
-            <div class="status-card">
-                <h3>IQ Option API</h3>
-                <div class="value">''' + ('✅ Conectada' if IQ_AVAILABLE else '⚠️ Simulación') + '''</div>
-            </div>
-            <div class="status-card">
-                <h3>WebSocket</h3>
-                <div class="value">✅ Activo</div>
-            </div>
-            <div class="status-card">
-                <h3>Estrategias</h3>
-                <div class="value">10 Activas</div>
-            </div>
-        </div>
-        
-        <div class="features">
-            <div class="feature">
-                <div class="feature-icon">✓</div>
-                <span>10 Estrategias Profesionales</span>
-            </div>
-            <div class="feature">
-                <div class="feature-icon">✓</div>
-                <span>Gestión de Riesgo Avanzada</span>
-            </div>
-            <div class="feature">
-                <div class="feature-icon">✓</div>
-                <span>6 Métodos de Money Management</span>
-            </div>
-            <div class="feature">
-                <div class="feature-icon">✓</div>
-                <span>Análisis Técnico en Tiempo Real</span>
-            </div>
-            <div class="feature">
-                <div class="feature-icon">✓</div>
-                <span>WebSocket para Gráficos en Vivo</span>
-            </div>
-            <div class="feature">
-                <div class="feature-icon">✓</div>
-                <span>Notificaciones Telegram</span>
-            </div>
-            <div class="feature">
-                <div class="feature-icon">✓</div>
-                <span>Límites Configurables</span>
-            </div>
-            <div class="feature">
-                <div class="feature-icon">✓</div>
-                <span>Multi-Timeframe</span>
-            </div>
-        </div>
-        
-        <div class="endpoints">
-            <h3>📡 API Endpoints Disponibles:</h3>
-            <ul>
-                <li>POST /api/login - Autenticación con IQ Option</li>
-                <li>GET /api/strategies - Lista de estrategias disponibles</li>
-                <li>GET /api/risk-levels - Niveles de riesgo</li>
-                <li>POST /api/start_bot - Iniciar bot con configuración</li>
-                <li>POST /api/stop_bot - Detener bot</li>
-                <li>GET /api/bot_status - Estado actual del bot</li>
-                <li>GET /api/live_data - Datos en tiempo real</li>
-                <li>GET /api/trading_history - Historial de operaciones</li>
-                <li>GET /api/performance - Métricas de rendimiento</li>
-                <li>POST /api/update_config - Actualizar configuración</li>
-                <li>WS /socket.io - WebSocket para datos en vivo</li>
-            </ul>
-        </div>
-        
-        <div class="buttons">
-            <a href="/health" class="btn btn-secondary">Health Check</a>
-            <a href="/api/strategies" class="btn btn-primary">Ver Estrategias</a>
-        </div>
-    </div>
-</body>
-</html>''', 200, {'Content-Type': 'text/html'}
-
-@app.route('/health', methods=['GET'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-def health_check():
-    """Health check del sistema"""
-    try:
-        # Calcular estadísticas
-        active_sessions = len(user_sessions)
-        active_bots_count = len([b for b in active_bots.values() if b.running])
-        total_bots = len(active_bots)
-        
-        health_data = {
-            "status": "healthy",
-            "timestamp": datetime.datetime.now().isoformat(),
-            "version": "2.0.0",
-            "environment": "production" if IQ_AVAILABLE else "simulation",
-            "features": {
-                "iqoption_api": IQ_AVAILABLE,
-                "websocket": True,
-                "telegram": bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID),
-                "real_time_data": True,
-                "multi_strategy": True,
-                "risk_management": True,
-                "money_management": True
-            },
-            "statistics": {
-                "active_sessions": active_sessions,
-                "active_bots": active_bots_count,
-                "total_bots": total_bots,
-                "strategies_available": len(STRATEGY_CONFIG),
-                "risk_levels": len(RiskLevel),
-                "money_management_methods": len(MoneyManagement)
-            },
-            "endpoints": {
-                "rest_api": "operational",
-                "websocket": "operational",
-                "cors": {
-                    "enabled": True,
-                    "allowed_origins": FRONTEND_DOMAINS
-                }
-            }
-        }
-        
-        return jsonify(health_data), 200
-        
-    except Exception as e:
-        logger.error(f"Error en health check: {e}")
-        return jsonify({
-            "status": "error",
-            "timestamp": datetime.datetime.now().isoformat(),
-            "error": str(e)
-        }), 500
-
-@app.route('/api/login', methods=['POST', 'OPTIONS'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-@limiter.limit("10 per minute")
-def login():
-    """Login con IQ Option"""
-    if request.method == 'OPTIONS':
-        return '', 204
-    
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"success": False, "message": "No se recibieron datos"}), 400
-        
-        email = data.get('email', '').strip()
-        password = data.get('password', '')
-        
-        if not email or not password:
-            return jsonify({"success": False, "message": "Email y contraseña requeridos"}), 400
-        
-        logger.info(f"Intento de login: {email}")
-        
-        # Limpiar sesión anterior
-        with sessions_lock:
-            if email in user_sessions:
-                try:
-                    if IQ_AVAILABLE and hasattr(user_sessions[email], 'close_websocket'):
-                        user_sessions[email].close_websocket()
-                except:
-                    pass
-                del user_sessions[email]
-        
-        # Detener bot anterior si existe
-        with bots_lock:
-            if email in active_bots:
-                active_bots[email].stop()
-                del active_bots[email]
-        
-        # Conectar con IQ Option
-        balance = 1000.0  # Default para simulación
-        account_type = "PRACTICE"
-        
-        if IQ_AVAILABLE:
-            try:
-                iq = IQ_Option(email, password)
-                check, reason = iq.connect()
-                
-                if not check:
-                    return jsonify({
-                        "success": False,
-                        "message": f"Error de autenticación: {reason}"
-                    }), 401
-                
-                balance = iq.get_balance()
-                account_type = iq.get_balance_mode()
-                
-                # Guardar sesión
-                with sessions_lock:
-                    user_sessions[email] = iq
-                    
-            except Exception as e:
-                logger.error(f"Error conectando con IQ Option: {e}")
-                return jsonify({
-                    "success": False,
-                    "message": f"Error de conexión: {str(e)}"
-                }), 503
-        else:
-            # Modo simulación
-            logger.info("Ejecutando en modo simulación")
-            with sessions_lock:
-                user_sessions[email] = {"simulation": True}
-        
-        # Establecer sesión
-        session['user_email'] = email
-        session.permanent = True
-        
-        # Notificar login exitoso
-        send_telegram_message(
-            f"🎯 *LOGIN EXITOSO*\n"
-            f"👤 Usuario: {email}\n"
-            f"💰 Balance: ${balance:.2f}\n"
-            f"🏦 Cuenta: {account_type}\n"
-            f"🔧 Modo: {'Real' if IQ_AVAILABLE else 'Simulación'}"
-        )
-        
-        return jsonify({
-            "success": True,
-            "user": {
-                "email": email,
-                "name": email.split('@')[0].title(),
-                "balance": balance,
-                "account_type": account_type,
-                "currency": "USD"
-            },
-            "features": {
-                "real_trading": IQ_AVAILABLE,
-                "websocket": True,
-                "strategies": len(STRATEGY_CONFIG),
-                "risk_levels": [r.value for r in RiskLevel],
-                "money_management": [m.value for m in MoneyManagement]
-            },
-            "message": f"Bienvenido - Modo {'Real' if IQ_AVAILABLE else 'Simulación'}"
-        }), 200
-        
-    except Exception as e:
-        logger.error(f"Error en login: {e}")
-        return jsonify({
-            "success": False,
-            "message": "Error interno del servidor"
-        }), 500
-
-@app.route('/api/strategies', methods=['GET'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-@require_auth
-def get_strategies():
-    """Obtener todas las estrategias disponibles"""
-    try:
-        strategies = []
-        
-        for strategy, config in STRATEGY_CONFIG.items():
-            strategies.append({
-                "id": strategy.value,
-                "name": config["name"],
-                "description": config["description"],
-                "risk_level": config["risk_level"].value,
-                "timeframes": config["timeframes"],
-                "min_confidence": config["min_confidence"],
-                "indicators": config["indicators"],
-                "expected_win_rate": config["expected_win_rate"],
-                "avg_trades_per_hour": config["avg_trades_per_hour"],
-                "best_sessions": config["best_sessions"],
-                "avoid_news": config["avoid_news"]
-            })
-        
-        # Agrupar por nivel de riesgo
-        grouped = {}
-        for strategy in strategies:
-            risk_level = strategy["risk_level"]
-            if risk_level not in grouped:
-                grouped[risk_level] = []
-            grouped[risk_level].append(strategy)
-        
-        return jsonify({
-            "strategies": strategies,
-            "grouped_by_risk": grouped,
-            "total": len(strategies),
-            "risk_levels": [
-                {
-                    "id": r.value,
-                    "name": r.value.replace('_', ' ').title(),
-                    "description": {
-                        "conservative": "Bajo riesgo, 1-2% por operación",
-                        "moderate": "Riesgo moderado, 2-5% por operación",
-                        "aggressive": "Alto riesgo, 5-10% por operación",
-                        "very_aggressive": "Muy alto riesgo, 10%+ por operación"
-                    }.get(r.value, "")
-                } for r in RiskLevel
-            ]
-        }), 200
-        
-    except Exception as e:
-        logger.error(f"Error obteniendo estrategias: {e}")
-        return jsonify({"error": "Error obteniendo estrategias"}), 500
-
-@app.route('/api/risk-levels', methods=['GET'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-def get_risk_levels():
-    """Obtener niveles de riesgo disponibles"""
-    risk_levels = [
-        {
-            "id": RiskLevel.CONSERVATIVE.value,
-            "name": "Conservador",
-            "description": "Ideal para principiantes",
-            "max_risk_per_trade": "1-2%",
-            "max_daily_loss": "5%",
-            "recommended_for": "Traders principiantes o con aversión al riesgo"
-        },
-        {
-            "id": RiskLevel.MODERATE.value,
-            "name": "Moderado",
-            "description": "Balance entre riesgo y recompensa",
-            "max_risk_per_trade": "2-5%",
-            "max_daily_loss": "10%",
-            "recommended_for": "Traders con experiencia media"
-        },
-        {
-            "id": RiskLevel.AGGRESSIVE.value,
-            "name": "Agresivo",
-            "description": "Para traders experimentados",
-            "max_risk_per_trade": "5-10%",
-            "max_daily_loss": "20%",
-            "recommended_for": "Traders experimentados con alta tolerancia al riesgo"
-        },
-        {
-            "id": RiskLevel.VERY_AGGRESSIVE.value,
-            "name": "Muy Agresivo",
-            "description": "Alto riesgo, alta recompensa",
-            "max_risk_per_trade": "10%+",
-            "max_daily_loss": "30%",
-            "recommended_for": "Solo para expertos con capital que pueden perder"
-        }
-    ]
-    
-    return jsonify({"risk_levels": risk_levels}), 200
-
-@app.route('/api/start_bot', methods=['POST'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-@require_auth
-@limiter.limit("5 per minute")
-def start_bot():
-    """Iniciar bot de trading"""
-    try:
-        email = session['user_email']
-        
-        # Verificar si ya hay un bot activo
-        with bots_lock:
-            if email in active_bots and active_bots[email].running:
-                return jsonify({
-                    "success": False,
-                    "message": "Ya hay un bot activo para esta cuenta"
-                }), 400
-        
-        data = request.get_json()
-        
-        # Validar configuración
-        config = {
-            'symbol': data.get('symbol', 'EURUSD'),
-            'strategies': data.get('strategies', ['support_resistance']),
-            'risk_level': data.get('risk_level', 'moderate'),
-            'money_management': data.get('money_management', 'percentage'),
-            'account_type': data.get('account_type', 'PRACTICE'),
-            'initial_balance': 1000.0,  # Se actualizará con el balance real
-            'max_consecutive_losses': int(data.get('max_consecutive_losses', 5)),
-            'max_consecutive_wins': int(data.get('max_consecutive_wins', 0)),
-            'max_daily_trades': int(data.get('max_daily_trades', 20)),
-            'stop_on_profit': float(data.get('stop_on_profit', 0)),
-            'stop_on_loss': float(data.get('stop_on_loss', 0))
-        }
-        
-        # Validar estrategias
-        valid_strategies = [s.value for s in Strategy]
-        for strategy in config['strategies']:
-            if strategy not in valid_strategies:
-                return jsonify({
-                    "success": False,
-                    "message": f"Estrategia inválida: {strategy}"
-                }), 400
-        
-        # Obtener API de IQ Option
-        iq_api = None
-        with sessions_lock:
-            if email in user_sessions:
-                iq_api = user_sessions[email]
-        
-        # Obtener balance actual
-        if IQ_AVAILABLE and iq_api and hasattr(iq_api, 'get_balance'):
-            try:
-                config['initial_balance'] = iq_api.get_balance()
-            except:
-                pass
-        
-        # Crear y configurar bot
-        bot = AdvancedBinaryBot(iq_api, config, email)
-        
-        # Guardar referencia del bot
-        with bots_lock:
-            active_bots[email] = bot
-        
-        # Iniciar bot
-        bot.start()
-        
-        return jsonify({
-            "success": True,
-            "message": "Bot iniciado exitosamente",
-            "config": {
-                "symbol": config['symbol'],
-                "strategies": config['strategies'],
-                "risk_level": config['risk_level'],
-                "money_management": config['money_management'],
-                "initial_balance": config['initial_balance'],
-                "limits": {
-                    "max_consecutive_losses": config['max_consecutive_losses'],
-                    "max_consecutive_wins": config['max_consecutive_wins'],
-                    "max_daily_trades": config['max_daily_trades'],
-                    "stop_on_profit": config['stop_on_profit'],
-                    "stop_on_loss": config['stop_on_loss']
-                }
-            }
-        }), 200
-        
-    except Exception as e:
-        logger.error(f"Error iniciando bot: {e}")
-        return jsonify({
-            "success": False,
-            "message": f"Error iniciando bot: {str(e)}"
-        }), 500
-
-@app.route('/api/stop_bot', methods=['POST'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-@require_auth
-def stop_bot():
-    """Detener bot de trading"""
-    try:
-        email = session['user_email']
-        
-        with bots_lock:
-            if email in active_bots:
-                bot = active_bots[email]
-                status = bot.get_status()
-                bot.stop()
-                del active_bots[email]
-                
-                return jsonify({
-                    "success": True,
-                    "message": "Bot detenido exitosamente",
-                    "final_stats": status['session']
-                }), 200
-            else:
-                return jsonify({
-                    "success": False,
-                    "message": "No hay bot activo"
-                }), 404
-                
-    except Exception as e:
-        logger.error(f"Error deteniendo bot: {e}")
-        return jsonify({
-            "success": False,
-            "message": f"Error: {str(e)}"
-        }), 500
-
-@app.route('/api/bot_status', methods=['GET'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-@require_auth
-def bot_status():
-    """Obtener estado del bot"""
-    try:
-        email = session['user_email']
-        
-        with bots_lock:
-            if email in active_bots and active_bots[email].running:
-                bot = active_bots[email]
-                return jsonify({
-                    "success": True,
-                    "status": bot.get_status()
-                }), 200
-            else:
-                return jsonify({
-                    "success": True,
-                    "status": {
-                        "running": False,
-                        "message": "No hay bot activo"
-                    }
-                }), 200
-                
-    except Exception as e:
-        logger.error(f"Error obteniendo estado: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
-@app.route('/api/live_data', methods=['GET'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-@require_auth
-def get_live_data():
-    """Obtener datos en tiempo real del bot"""
-    try:
-        email = session['user_email']
-        
-        with bots_lock:
-            if email in active_bots and active_bots[email].running:
-                bot = active_bots[email]
-                
-                # Obtener última vela
-                current_candle = bot._get_current_candle()
-                
-                # Obtener estado del bot
-                status = bot.get_status()
-                
-                # Obtener trades recientes
-                recent_trades = []
-                if hasattr(bot.session, 'trades'):
-                    for trade in bot.session.trades[-10:]:  # Últimos 10 trades
-                        recent_trades.append({
-                            'id': trade.id,
-                            'time': trade.entry_time.isoformat(),
-                            'symbol': trade.symbol,
-                            'direction': trade.direction,
-                            'amount': trade.amount,
-                            'result': trade.result,
-                            'profit': trade.profit
-                        })
-                
-                return jsonify({
-                    "success": True,
-                    "data": {
-                        "current_candle": current_candle,
-                        "bot_status": status,
-                        "recent_trades": recent_trades,
-                        "timestamp": datetime.datetime.now().isoformat()
-                    }
-                }), 200
-            else:
-                return jsonify({
-                    "success": False,
-                    "message": "No hay bot activo"
-                }), 404
-                
-    except Exception as e:
-        logger.error(f"Error obteniendo datos en vivo: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
-@app.route('/api/trading_history', methods=['GET'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-@require_auth
-def get_trading_history():
-    """Obtener historial de trading"""
-    try:
-        email = session['user_email']
-        
-        # Parámetros de paginación
-        page = int(request.args.get('page', 1))
-        per_page = int(request.args.get('per_page', 50))
-        
-        trades = []
-        
-        # Obtener trades del bot activo
-        with bots_lock:
-            if email in active_bots:
-                bot = active_bots[email]
-                if hasattr(bot.session, 'trades'):
-                    for trade in bot.session.trades:
-                        trades.append({
-                            'id': trade.id,
-                            'timestamp': trade.entry_time.isoformat(),
-                            'symbol': trade.symbol,
-                            'direction': trade.direction,
-                            'amount': trade.amount,
-                            'entry_price': trade.entry_price,
-                            'strategy': trade.strategy.value,
-                            'confidence': trade.confidence,
-                            'result': trade.result,
-                            'profit': trade.profit,
-                            'expiry_time': trade.expiry_time
-                        })
-        
-        # Ordenar por timestamp descendente
-        trades.sort(key=lambda x: x['timestamp'], reverse=True)
-        
-        # Paginar
-        start = (page - 1) * per_page
-        end = start + per_page
-        paginated_trades = trades[start:end]
-        
-        return jsonify({
-            "success": True,
-            "trades": paginated_trades,
-            "pagination": {
-                "page": page,
-                "per_page": per_page,
-                "total": len(trades),
-                "pages": math.ceil(len(trades) / per_page)
-            }
-        }), 200
-        
-    except Exception as e:
-        logger.error(f"Error obteniendo historial: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
-@app.route('/api/performance', methods=['GET'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-@require_auth
-def get_performance():
-    """Obtener métricas de rendimiento"""
-    try:
-        email = session['user_email']
-        
-        performance = {
-            "total_trades": 0,
-            "winning_trades": 0,
-            "losing_trades": 0,
-            "win_rate": 0.0,
-            "total_profit": 0.0,
-            "profit_factor": 0.0,
-            "max_drawdown": 0.0,
-            "sharpe_ratio": 0.0,
-            "average_win": 0.0,
-            "average_loss": 0.0,
-            "best_trade": 0.0,
-            "worst_trade": 0.0,
-            "consecutive_wins": 0,
-            "consecutive_losses": 0,
-            "by_strategy": {},
-            "by_timeframe": {},
-            "daily_performance": []
-        }
-        
-        with bots_lock:
-            if email in active_bots:
-                bot = active_bots[email]
-                session = bot.session
-                
-                performance.update({
-                    "total_trades": session.total_trades,
-                    "winning_trades": session.winning_trades,
-                    "losing_trades": session.losing_trades,
-                    "win_rate": session.win_rate,
-                    "total_profit": session.total_profit,
-                    "profit_factor": session.profit_factor,
-                    "max_drawdown": session.max_drawdown,
-                    "consecutive_wins": session.max_consecutive_wins,
-                    "consecutive_losses": session.max_consecutive_losses
-                })
-                
-                # Calcular promedios
-                if session.trades:
-                    wins = [t.profit for t in session.trades if t.profit and t.profit > 0]
-                    losses = [t.profit for t in session.trades if t.profit and t.profit < 0]
-                    
-                    if wins:
-                        performance["average_win"] = np.mean(wins)
-                        performance["best_trade"] = max(wins)
-                    
-                    if losses:
-                        performance["average_loss"] = np.mean(losses)
-                        performance["worst_trade"] = min(losses)
-                    
-                    # Rendimiento por estrategia
-                    for trade in session.trades:
-                        strategy = trade.strategy.value
-                        if strategy not in performance["by_strategy"]:
-                            performance["by_strategy"][strategy] = {
-                                "trades": 0,
-                                "wins": 0,
-                                "profit": 0.0
-                            }
-                        
-                        performance["by_strategy"][strategy]["trades"] += 1
-                        if trade.result == "win":
-                            performance["by_strategy"][strategy]["wins"] += 1
-                        if trade.profit:
-                            performance["by_strategy"][strategy]["profit"] += trade.profit
-        
-        return jsonify({
-            "success": True,
-            "performance": performance
-        }), 200
-        
-    except Exception as e:
-        logger.error(f"Error obteniendo rendimiento: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
-@app.route('/api/update_config', methods=['POST'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-@require_auth
-def update_config():
-    """Actualizar configuración del bot en ejecución"""
-    try:
-        email = session['user_email']
-        data = request.get_json()
-        
-        with bots_lock:
-            if email not in active_bots or not active_bots[email].running:
-                return jsonify({
-                    "success": False,
-                    "message": "No hay bot activo"
-                }), 404
-            
-            bot = active_bots[email]
-            
-            # Actualizar límites
-            if 'max_consecutive_losses' in data:
-                bot.max_consecutive_losses = int(data['max_consecutive_losses'])
-            
-            if 'max_consecutive_wins' in data:
-                bot.max_consecutive_wins = int(data['max_consecutive_wins'])
-            
-            if 'max_daily_trades' in data:
-                bot.max_daily_trades = int(data['max_daily_trades'])
-            
-            if 'stop_on_profit' in data:
-                bot.stop_on_profit = float(data['stop_on_profit'])
-            
-            if 'stop_on_loss' in data:
-                bot.stop_on_loss = float(data['stop_on_loss'])
-            
-            if 'min_time_between_trades' in data:
-                bot.min_time_between_trades = int(data['min_time_between_trades'])
-            
-            # No se pueden cambiar estrategias o risk level en caliente
-            # Requiere reiniciar el bot
-            
-            return jsonify({
-                "success": True,
-                "message": "Configuración actualizada",
-                "updated_config": {
-                    "max_consecutive_losses": bot.max_consecutive_losses,
-                    "max_consecutive_wins": bot.max_consecutive_wins,
-                    "max_daily_trades": bot.max_daily_trades,
-                    "stop_on_profit": bot.stop_on_profit,
-                    "stop_on_loss": bot.stop_on_loss,
-                    "min_time_between_trades": bot.min_time_between_trades
-                }
-            }), 200
-            
-    except Exception as e:
-        logger.error(f"Error actualizando configuración: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
-@app.route('/api/logout', methods=['POST'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-def logout():
-    """Cerrar sesión"""
-    try:
-        email = session.get('user_email')
-        
-        if email:
-            # Detener bot si está activo
-            with bots_lock:
-                if email in active_bots:
-                    active_bots[email].stop()
-                    del active_bots[email]
-            
-            # Cerrar conexión IQ Option
-            with sessions_lock:
-                if email in user_sessions:
-                    if IQ_AVAILABLE and hasattr(user_sessions[email], 'close_websocket'):
-                        try:
-                            user_sessions[email].close_websocket()
-                        except:
-                            pass
-                    del user_sessions[email]
-            
-            # Limpiar datos de mercado
-            with data_lock:
-                if email in market_data_streams:
-                    del market_data_streams[email]
-            
-            # Limpiar sesión
-            session.clear()
-            
-            send_telegram_message(
-                f"👋 *LOGOUT*\n"
-                f"👤 Usuario: {email}\n"
-                f"⏰ {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-            )
-        
-        return jsonify({
-            "success": True,
-            "message": "Sesión cerrada exitosamente"
-        }), 200
-        
-    except Exception as e:
-        logger.error(f"Error en logout: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
-# ============================================================================
-# MANEJO DE ERRORES
-# ============================================================================
-
-@app.errorhandler(404)
-def not_found(error):
-    return jsonify({
-        "error": "Endpoint no encontrado",
-        "message": "La ruta solicitada no existe",
-        "available_endpoints": [
-            "/health",
-            "/api/login",
-            "/api/strategies",
-            "/api/risk-levels",
-            "/api/start_bot",
-            "/api/stop_bot",
-            "/api/bot_status",
-            "/api/live_data",
-            "/api/trading_history",
-            "/api/performance",
-            "/api/update_config",
-            "/api/logout"
-        ]
-    }), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    logger.error(f"Error interno: {error}")
-    return jsonify({
-        "error": "Error interno del servidor",
-        "message": "Ha ocurrido un error inesperado"
-    }), 500
-
-@app.errorhandler(429)
-def ratelimit_handler(e):
-    return jsonify({
-        "error": "Límite de peticiones excedido",
-        "message": f"Demasiadas peticiones. {e.description}"
-    }), 429
-
-# ============================================================================
-# FUNCIONES DE LIMPIEZA Y MANTENIMIENTO
-# ============================================================================
-
-def cleanup_inactive_sessions():
-    """Limpia sesiones inactivas periódicamente"""
-    while True:
-        try:
-            time.sleep(3600)  # Cada hora
-            
-            with sessions_lock:
-                inactive_emails = []
-                
-                for email, api in list(user_sessions.items()):
-                    # Verificar si la sesión sigue activa
-                    if email not in active_bots:
-                        # No hay bot activo, verificar tiempo de inactividad
-                        inactive_emails.append(email)
-                
-                # Limpiar sesiones inactivas
-                for email in inactive_emails:
-                    logger.info(f"Limpiando sesión inactiva: {email}")
-                    if IQ_AVAILABLE and hasattr(user_sessions[email], 'close_websocket'):
-                        try:
-                            user_sessions[email].close_websocket()
-                        except:
-                            pass
-                    del user_sessions[email]
-                    
-        except Exception as e:
-            logger.error(f"Error en limpieza de sesiones: {e}")
-
-def reset_daily_limits():
-    """Reinicia límites diarios a medianoche"""
-    while True:
-        try:
-            # Calcular tiempo hasta medianoche
-            now = datetime.datetime.now()
-            midnight = now.replace(hour=0, minute=0, second=0, microsecond=0) + datetime.timedelta(days=1)
-            sleep_time = (midnight - now).total_seconds()
-            
-            time.sleep(sleep_time)
-            
-            # Reiniciar límites diarios
-            with bots_lock:
-                for bot in active_bots.values():
-                    bot.risk_manager.reset_daily_limits()
-                    bot.daily_operations = 0
-                    
-            logger.info("Límites diarios reiniciados")
-            
-        except Exception as e:
-            logger.error(f"Error reiniciando límites diarios: {e}")
-
-def graceful_shutdown(signum=None, frame=None):
-    """Cierre ordenado del sistema"""
-    logger.info("🛑 Iniciando cierre ordenado del sistema...")
-    
-    # Detener todos los bots
-    with bots_lock:
-        for email, bot in list(active_bots.items()):
-            try:
-                logger.info(f"Deteniendo bot para {email}")
-                bot.stop()
-            except Exception as e:
-                logger.error(f"Error deteniendo bot {email}: {e}")
-        active_bots.clear()
-    
-    # Cerrar todas las conexiones IQ Option
-    with sessions_lock:
-        for email, api in list(user_sessions.items()):
-            try:
-                if IQ_AVAILABLE and hasattr(api, 'close_websocket'):
-                    logger.info(f"Cerrando conexión para {email}")
-                    api.close_websocket()
-            except Exception as e:
-                logger.error(f"Error cerrando conexión {email}: {e}")
-        user_sessions.clear()
-    
-    logger.info("✅ Sistema cerrado correctamente")
-    
-    # Salir
-    if signum:
-        sys.exit(0)
-
-# Registrar manejadores de señales
-signal.signal(signal.SIGTERM, graceful_shutdown)
-signal.signal(signal.SIGINT, graceful_shutdown)
-atexit.register(lambda: graceful_shutdown())
-
-# Iniciar threads de mantenimiento
-Thread(target=cleanup_inactive_sessions, daemon=True).start()
-Thread(target=reset_daily_limits, daemon=True).start()
-
-# ============================================================================
-# MAIN - PUNTO DE ENTRADA
-# ============================================================================
-
-# Para producción, este bloque solo muestra información
-# El servidor real se ejecuta con Gunicorn
-port = int(os.environ.get('PORT', 5000))
-
-logger.info("=" * 70)
-logger.info("🎯 BOT PROFESIONAL DE OPCIONES BINARIAS - IQ OPTION V2.0")
-logger.info("=" * 70)
-logger.info(f"📍 Puerto: {port}")
-logger.info(f"🌐 Frontend: {FRONTEND_DOMAINS[0]}")
-logger.info(f"🔧 Modo: {'REAL' if IQ_AVAILABLE else 'SIMULACIÓN'}")
-logger.info(f"📱 Telegram: {'✅ Configurado' if TELEGRAM_BOT_TOKEN else '❌ No configurado'}")
-logger.info(f"📊 Estrategias disponibles: {len(STRATEGY_CONFIG)}")
-logger.info(f"💰 Métodos de gestión de dinero: {len(MoneyManagement)}")
-logger.info(f"⚠️ Niveles de riesgo: {len(RiskLevel)}")
-logger.info("")
-logger.info("✨ CARACTERÍSTICAS PRINCIPALES:")
-logger.info("   • 10 estrategias profesionales de trading")
-logger.info("   • Análisis técnico en tiempo real")
-logger.info("   • WebSocket para datos en vivo y gráficos")
-logger.info("   • 6 métodos de gestión monetaria")
-logger.info("   • 4 niveles de riesgo configurables")
-logger.info("   • Límites automáticos (pérdidas/ganancias/diario)")
-logger.info("   • Notificaciones Telegram en tiempo real")
-logger.info("   • API REST completa + WebSocket")
-logger.info("   • Interfaz para gráficos de velas en tiempo real")
-logger.info("=" * 70)
-
-if not IQ_AVAILABLE:
-    logger.warning("⚠️ MODO SIMULACIÓN ACTIVO")
-    logger.info("Para activar trading real:")
-    logger.info("pip install git+https://github.com/Lu-Yi-Hsun/iqoptionapi.git")
-
-# Notificar inicio
-send_telegram_message(
-    f"🚀 *BACKEND INICIADO*\n"
-    f"🔧 Versión: 2.0.0\n"
-    f"📍 Puerto: {port}\n"
-    f"💻 Modo: {'REAL' if IQ_AVAILABLE else 'SIMULACIÓN'}\n"
-    f"📊 Estrategias: {len(STRATEGY_CONFIG)}\n"
-    f"⏰ {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-)
-
-# Solo ejecutar el servidor de desarrollo si no estamos en producción
-if __name__ == '__main__':
-    # Detectar si estamos en Render
-    if os.environ.get('RENDER'):
-        # En producción, Gunicorn maneja el servidor
-        logger.info("🚀 Ejecutando en modo producción con Gunicorn")
-    else:
-        # En desarrollo, usar el servidor de Flask-SocketIO
-        logger.info("🔧 Ejecutando en modo desarrollo")
-        socketio.run(app, host='0.0.0.0', port=port, debug=True)
