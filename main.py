@@ -1,11 +1,15 @@
-message += f"🎯 Win Rate: {self.session.win_rate:.1f}%\n"
-        profit_sign = '+' if self.session.total_profit >= 0 else ''
-        message += f"💰 Profit: {profit_sign}${self.session.total_profit:.2f}\n"
-        message += f"💵 Balance Final: ${self.session.current_balance:.2f}\n"
-        message += f"📉 Max Drawdown: {self.session.max_drawdown:.1f}%\n"
-        message += f"🔥 Rachas: {self.session.max_consecutive_wins}W / {self.session.max_consecutive_losses}L"
-        
-        self._send_telegram_notification(message)
+    # … código previo del método …
+
+    message += f"🎯 Win Rate: {self.session.win_rate:.1f}%\n"
+    profit_sign = '+' if self.session.total_profit >= 0 else ''
+    message += f"💰 Profit: {profit_sign}${self.session.total_profit:.2f}\n"
+    message += f"💵 Balance Final: ${self.session.current_balance:.2f}\n"
+    message += f"📉 Max Drawdown: {self.session.max_drawdown:.1f}%\n"
+    message += f"🔥 Rachas: {self.session.max_consecutive_wins}W / {self.session.max_consecutive_losses}L"
+    self._send_telegram_notification(message)
+
+    # … sigue el resto del método …
+
     
     def get_status(self) -> Dict[str, Any]:
         """Obtiene el estado actual del bot"""
