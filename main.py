@@ -31,6 +31,12 @@ import os
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+REDIS_URL = os.getenv("REDIS_URL")
+if not REDIS_URL:
+    raise RuntimeError("REDIS_URL no está definida en el entorno de Render")
+
+init_session_manager(redis_url=REDIS_URL)
+
 
 from security import (
     require_auth, rate_limit, validate_request_data, 
