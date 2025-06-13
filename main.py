@@ -1,2522 +1,1018 @@
-.status-card {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            border-radius: 10px;
-            padding: 20px;
-            text-align: center;
-            transition: transform 0.3s ease;
-        }
-        
-        .status-card:hover {
-            transform: translateY(-5px);
-        }
-        
-        .status-card h3 {
-            color: #1e3c72;
-            margin-bottom: 10px;
-        }
-        
-        .status-card .value {
-            font-size: 1.5em;
-            font-weight: bold;
-            color: #2a5298;
-        }
-        
-        .status-card.active {
-            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
-        }
-        
-        .endpoints {
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 30px;
-            margin-top: 40px;
-        }
-        
-        .endpoints h3 {
-            color: #1e3c72;
-            margin-bottom: 20px;
-        }
-        
-        .endpoints ul {
-            list-style: none;
-        }
-        
-        .endpoints li {
-            padding: 10px;
-            border-left: 3px solid #2a5298;
-            margin-bottom: 10px;
-            background: white;
-            border-radius: 0 5px 5px 0;
-            font-family: 'Courier New', monospace;
-        }
-        
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin: 30px 0;
-        }
-        
-        .feature {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .feature-icon {
-            width: 24px;
-            height: 24px;
-            background: #2a5298;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-        }
-        
-        .buttons {
-            display: flex;
-            gap: 20px;
-            justify-content: center;
-            margin-top: 40px;
-        }
-        
-        .btn {
-            padding: 15px 30px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            text-decoration: none;
-            transition: all 0.3s ease;
-            display: inline-block;
-        }
-        
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
-        }
-        
-        .btn-secondary {
-            background: white;
-            color: #1e3c72;
-            border: 2px solid #1e3c72;
-        }
-        
-        .btn-secondary:hover {
-            background: #1e3c72;
-            color: white;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🎯 Bot Profesional de Opciones Binarias</h1>
-        <h2>Sistema Avanzado de Trading Automatizado para IQ Option</h2>
-        
-        <div class="status-grid">
-            <div class="status-card active">
-                <h3>Estado del Sistema</h3>
-                <div class="value">✅ Operativo</div>
-            </div>
-            <div class="status-card">
-                <h3>IQ Option API</h3>
-                <div class="value">''' + ('✅ Conectada' if IQ_AVAILABLE else '⚠️ Simulación') + '''</div>
-            </div>
-            <div class="status-card">
-                <h3>WebSocket</h3>
-                <div class="value">✅ Activo</div>
-            </div>
-            <div class="status-card">
-                <h3>Estrategias</h3>
-                <div class="value">10 Activas</div>
-            </div>
-        </div>
-        
-        <div class="features">
-            <div class="feature">
-                <div class="feature-icon">✓</div>
-                <span>10 Estrategias Profesionales</span>
-            </div>
-            <div class="feature">
-                <div class="feature-icon">✓</div>
-                <span>Gestión de Riesgo Avanzada</span>
-            </div>
-            <div class="feature">
-                <div class="feature-icon">✓</div>
-                <span>6 Métodos de Money Management</span>
-            </div>
-            <div class="feature">
-                <div class="feature-icon">✓</div>
-                <span>Análisis Técnico en Tiempo Real</span>
-            </div>
-            <div class="feature">
-                <div class="feature-icon">✓</div>
-                <span>WebSocket para Gráficos en Vivo</span>
-            </div>
-            <div class="feature">
-                <div class="feature-icon">✓</div>
-                <span>Notificaciones Telegram</span>
-            </div>
-            <div class="feature">
-                <div class="feature-icon">✓</div>
-                <span>Límites Configurables</span>
-            </div>
-            <div class="feature">
-                <div class="feature-icon">✓</div>
-                <span>Multi-Timeframe</span>
-            </div>
-        </div>
-        
-        <div class="endpoints">
-            <h3>📡 API Endpoints Disponibles:</h3>
-            <ul>
-                <li>POST /api/login - Autenticación con IQ Option</li>
-                <li>GET /api/strategies - Lista de estrategias disponibles</li>
-                <li>GET /api/risk-levels - Niveles de riesgo</li>
-                <li>POST /api/start_bot - Iniciar bot con configuración</li>
-                <li>POST /api/stop_bot - Detener bot</li>
-                <li>GET /api/bot_status - Estado actual del bot</li>
-                <li>GET /api/live_data - Datos en tiempo real</li>
-                <li>GET /api/trading_history - Historial de operaciones</li>
-                <li>GET /api/performance - Métricas de rendimiento</li>
-                <li>POST /api/update_config - Actualizar configuración</li>
-                <li>WS /socket.io - WebSocket para datos en vivo</li>
-            </ul>
-        </div>
-        
-        <div class="buttons">
-            <a href="/health" class="btn btn-secondary">Health Check</a>
-            <a href="/api/strategies" class="btn btn-primary">Ver Estrategias</a>
-        </div>
-    </div>
-</body>
-</html>''', 200, {'Content-Type': 'text/html'}
+import os
+import asyncio
+import logging
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
+import json
+import traceback
 
-@app.route('/health', methods=['GET'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-def health_check():
-    try:
-        active_sessions = len(user_sessions)
-        active_bots_count = len([b for b in active_bots.values() if b.running])
-        total_bots = len(active_bots)
-        
-        health_data = {
-            "status": "healthy",
-            "timestamp": datetime.datetime.now().isoformat(),
-            "version": "2.0.0",
-            "environment": "production" if IQ_AVAILABLE else "simulation",
-            "features": {
-                "iqoption_api": IQ_AVAILABLE,
-                "websocket": True,
-                "telegram": bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID),
-                "real_time_data": True,
-                "multi_strategy": True,
-                "risk_management": True,
-                "money_management": True
-            },
-            "statistics": {
-                "active_sessions": active_sessions,
-                "active_bots": active_bots_count,
-                "total_bots": total_bots,
-                "strategies_available": len(STRATEGY_CONFIG),
-                "risk_levels": len(RiskLevel),
-                "money_management_methods": len(MoneyManagement)
-            },
-            "endpoints": {
-                "rest_api": "operational",
-                "websocket": "operational",
-                "cors": {
-                    "enabled": True,
-                    "allowed_origins": FRONTEND_DOMAINS
-                }
-            }
-        }
-        
-        return jsonify(health_data), 200
-        
-    except Exception as e:
-        logger.error(f"Error en health check: {e}")
-        return jsonify({
-            "status": "error",
-            "timestamp": datetime.datetime.now().isoformat(),
-            "error": str(e)
-        }), 500
+from flask import Flask, request, jsonify, session
+from flask_cors import CORS
+from flask_session import Session
+import redis
+import requests
+from werkzeug.security import generate_password_hash, check_password_hash
 
-@app.route('/api/login', methods=['POST', 'OPTIONS'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-@limiter.limit("10 per minute")
-def login():
-    if request.method == 'OPTIONS':
-        return '', 204
-    
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"success": False, "message": "No se recibieron datos"}), 400
-        
-        email = data.get('email', '').strip()
-        password = data.get('password', '')
-        
-        if not email or not password:
-            return jsonify({"success": False, "message": "Email y contraseña requeridos"}), 400
-        
-        logger.info(f"Intento de login: {email}")
-        
-        with sessions_lock:
-            if email in user_sessions:
-                try:
-                    if IQ_AVAILABLE and hasattr(user_sessions[email], 'close_websocket'):
-                        try:
-                            user_sessions[email].close_websocket()
-                        except:
-                            pass
-                    del user_sessions[email]
-            
-            with data_lock:
-                if email in market_data_streams:
-                    del market_data_streams[email]
-            
-            session.clear()
-            
-            send_telegram_message(
-                f"👋 *LOGOUT*\n"
-                f"👤 Usuario: {email}\n"
-                f"⏰ {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-            )
-        
-        return jsonify({
-            "success": True,
-            "message": "Sesión cerrada exitosamente"
-        }), 200
-        
-    except Exception as e:
-        logger.error(f"Error en logout: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+from iqoptionapi.stable_api import IQ_Option
+import pandas as pd
+import numpy as np
+from ta import add_all_ta_features
+from ta.momentum import RSIIndicator, StochasticOscillator
+from ta.trend import MACD, CCIIndicator, EMAIndicator, SMAIndicator
+from ta.volatility import BollingerBands, AverageTrueRange
+import time
 
-# ============================================================================
-# MANEJO DE ERRORES
-# ============================================================================
-
-@app.errorhandler(404)
-def not_found(error):
-    return jsonify({
-        "error": "Endpoint no encontrado",
-        "message": "La ruta solicitada no existe",
-        "available_endpoints": [
-            "/health",
-            "/api/login",
-            "/api/strategies",
-            "/api/risk-levels",
-            "/api/start_bot",
-            "/api/stop_bot",
-            "/api/bot_status",
-            "/api/live_data",
-            "/api/trading_history",
-            "/api/performance",
-            "/api/update_config",
-            "/api/logout"
-        ]
-    }), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    logger.error(f"Error interno: {error}")
-    return jsonify({
-        "error": "Error interno del servidor",
-        "message": "Ha ocurrido un error inesperado"
-    }), 500
-
-@app.errorhandler(429)
-def ratelimit_handler(e):
-    return jsonify({
-        "error": "Límite de peticiones excedido",
-        "message": f"Demasiadas peticiones. {e.description}"
-    }), 429
-
-# ============================================================================
-# FUNCIONES DE LIMPIEZA Y MANTENIMIENTO
-# ============================================================================
-
-def cleanup_inactive_sessions():
-    while True:
-        try:
-            time.sleep(3600)
-            
-            with sessions_lock:
-                inactive_emails = []
-                
-                for email, api in list(user_sessions.items()):
-                    if email not in active_bots:
-                        inactive_emails.append(email)
-                
-                for email in inactive_emails:
-                    logger.info(f"Limpiando sesión inactiva: {email}")
-                    if IQ_AVAILABLE and hasattr(user_sessions[email], 'close_websocket'):
-                        try:
-                            user_sessions[email].close_websocket()
-                        except:
-                            pass
-                    del user_sessions[email]
-                    
-        except Exception as e:
-            logger.error(f"Error en limpieza de sesiones: {e}")
-
-def reset_daily_limits():
-    while True:
-        try:
-            now = datetime.datetime.now()
-            midnight = now.replace(hour=0, minute=0, second=0, microsecond=0) + datetime.timedelta(days=1)
-            sleep_time = (midnight - now).total_seconds()
-            
-            time.sleep(sleep_time)
-            
-            with bots_lock:
-                for bot in active_bots.values():
-                    bot.risk_manager.reset_daily_limits()
-                    
-            logger.info("Límites diarios reiniciados")
-            
-        except Exception as e:
-            logger.error(f"Error reiniciando límites diarios: {e}")
-
-def graceful_shutdown(signum=None, frame=None):
-    logger.info("🛑 Iniciando cierre ordenado del sistema...")
-    
-    with bots_lock:
-        for email, bot in list(active_bots.items()):
-            try:
-                logger.info(f"Deteniendo bot para {email}")
-                bot.stop()
-            except Exception as e:
-                logger.error(f"Error deteniendo bot {email}: {e}")
-        active_bots.clear()
-    
-    with sessions_lock:
-        for email, api in list(user_sessions.items()):
-            try:
-                if IQ_AVAILABLE and hasattr(api, 'close_websocket'):
-                    logger.info(f"Cerrando conexión para {email}")
-                    api.close_websocket()
-            except Exception as e:
-                logger.error(f"Error cerrando conexión {email}: {e}")
-        user_sessions.clear()
-    
-    logger.info("✅ Sistema cerrado correctamente")
-    
-    if signum:
-        sys.exit(0)
-
-signal.signal(signal.SIGTERM, graceful_shutdown)
-signal.signal(signal.SIGINT, graceful_shutdown)
-atexit.register(lambda: graceful_shutdown())
-
-# Iniciar threads de mantenimiento SOLO SI NO ES RENDER
-if not os.environ.get('RENDER'):
-    Thread(target=cleanup_inactive_sessions, daemon=True).start()
-    Thread(target=reset_daily_limits, daemon=True).start()
-
-# ============================================================================
-# MAIN - PUNTO DE ENTRADA
-# ============================================================================
-
-port = int(os.environ.get('PORT', 5000))
-
-logger.info("=" * 70)
-logger.info("🎯 BOT PROFESIONAL DE OPCIONES BINARIAS - IQ OPTION V2.0")
-logger.info("=" * 70)
-logger.info(f"📍 Puerto: {port}")
-logger.info(f"🌐 Frontend: {FRONTEND_DOMAINS[0]}")
-logger.info(f"🔧 Modo: {'REAL' if IQ_AVAILABLE else 'SIMULACIÓN'}")
-logger.info(f"📱 Telegram: {'✅ Configurado' if TELEGRAM_BOT_TOKEN else '❌ No configurado'}")
-logger.info(f"📊 Estrategias disponibles: {len(STRATEGY_CONFIG)}")
-logger.info(f"💰 Métodos de gestión de dinero: {len(MoneyManagement)}")
-logger.info(f"⚠️ Niveles de riesgo: {len(RiskLevel)}")
-logger.info("")
-logger.info("✨ CARACTERÍSTICAS PRINCIPALES:")
-logger.info("   • 10 estrategias profesionales de trading")
-logger.info("   • Análisis técnico en tiempo real")
-logger.info("   • WebSocket para datos en vivo y gráficos")
-logger.info("   • 6 métodos de gestión monetaria")
-logger.info("   • 4 niveles de riesgo configurables")
-logger.info("   • Límites automáticos (pérdidas/ganancias/diario)")
-logger.info("   • Notificaciones Telegram en tiempo real")
-logger.info("   • API REST completa + WebSocket")
-logger.info("   • Interfaz para gráficos de velas en tiempo real")
-logger.info("=" * 70)
-
-if not IQ_AVAILABLE:
-    logger.warning("⚠️ MODO SIMULACIÓN ACTIVO")
-    logger.info("Para activar trading real:")
-    logger.info("pip install git+https://github.com/Lu-Yi-Hsun/iqoptionapi.git")
-
-send_telegram_message(
-    f"🚀 *BACKEND INICIADO*\n"
-    f"🔧 Versión: 2.0.0\n"
-    f"📍 Puerto: {port}\n"
-    f"💻 Modo: {'REAL' if IQ_AVAILABLE else 'SIMULACIÓN'}\n"
-    f"📊 Estrategias: {len(STRATEGY_CONFIG)}\n"
-    f"⏰ {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+# Import session manager, async handler, database, monitoring and security
+from session_manager import init_session_manager, get_session_manager
+from async_handler import get_async_handler
+from database import init_database, get_database
+from monitoring import init_monitoring, get_monitor
+from security import (
+    require_auth, rate_limit, validate_request_data, 
+    add_security_headers, validate_trading_params
 )
 
-if __name__ == '__main__':
-    if os.environ.get('RENDER'):
-        logger.info("🚀 Ejecutando en modo producción con Gunicorn")
-    else:
-        logger.info("🔧 Ejecutando en modo desarrollo")
-        socketio.run(app, host='0.0.0.0', port=port, debug=True)
-
-application = socketio.wsgi_app
-                        user_sessions[email].close_websocket()
-                except:
-                    pass
-                del user_sessions[email]
-        
-        with bots_lock:
-            if email in active_bots:
-                active_bots[email].stop()
-                del active_bots[email]
-        
-        balance = 1000.0
-        account_type = "PRACTICE"
-        
-        if IQ_AVAILABLE:
-            try:
-                iq = IQ_Option(email, password)
-                check, reason = iq.connect()
-                
-                if not check:
-                    return jsonify({
-                        "success": False,
-                        "message": f"Error de autenticación: {reason}"
-                    }), 401
-                
-                balance = iq.get_balance()
-                account_type = iq.get_balance_mode()
-                
-                with sessions_lock:
-                    user_sessions[email] = iq
-                    
-            except Exception as e:
-                logger.error(f"Error conectando con IQ Option: {e}")
-                return jsonify({
-                    "success": False,
-                    "message": f"Error de conexión: {str(e)}"
-                }), 503
-        else:
-            logger.info("Ejecutando en modo simulación")
-            with sessions_lock:
-                user_sessions[email] = {"simulation": True}
-        
-        session['user_email'] = email
-        session.permanent = True
-        
-        send_telegram_message(
-            f"🎯 *LOGIN EXITOSO*\n"
-            f"👤 Usuario: {email}\n"
-            f"💰 Balance: ${balance:.2f}\n"
-            f"🏦 Cuenta: {account_type}\n"
-            f"🔧 Modo: {'Real' if IQ_AVAILABLE else 'Simulación'}"
-        )
-        
-        return jsonify({
-            "success": True,
-            "user": {
-                "email": email,
-                "name": email.split('@')[0].title(),
-                "balance": balance,
-                "account_type": account_type,
-                "currency": "USD"
-            },
-            "features": {
-                "real_trading": IQ_AVAILABLE,
-                "websocket": True,
-                "strategies": len(STRATEGY_CONFIG),
-                "risk_levels": [r.value for r in RiskLevel],
-                "money_management": [m.value for m in MoneyManagement]
-            },
-            "message": f"Bienvenido - Modo {'Real' if IQ_AVAILABLE else 'Simulación'}"
-        }), 200
-        
-    except Exception as e:
-        logger.error(f"Error en login: {e}")
-        return jsonify({
-            "success": False,
-            "message": "Error interno del servidor"
-        }), 500
-
-@app.route('/api/strategies', methods=['GET'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-@require_auth
-def get_strategies():
-    try:
-        strategies = []
-        
-        for strategy, config in STRATEGY_CONFIG.items():
-            strategies.append({
-                "id": strategy.value,
-                "name": config["name"],
-                "description": config["description"],
-                "risk_level": config["risk_level"].value,
-                "timeframes": config["timeframes"],
-                "min_confidence": config["min_confidence"],
-                "indicators": config["indicators"],
-                "expected_win_rate": config["expected_win_rate"],
-                "avg_trades_per_hour": config["avg_trades_per_hour"],
-                "best_sessions": config["best_sessions"],
-                "avoid_news": config["avoid_news"]
-            })
-        
-        grouped = {}
-        for strategy in strategies:
-            risk_level = strategy["risk_level"]
-            if risk_level not in grouped:
-                grouped[risk_level] = []
-            grouped[risk_level].append(strategy)
-        
-        return jsonify({
-            "strategies": strategies,
-            "grouped_by_risk": grouped,
-            "total": len(strategies),
-            "risk_levels": [
-                {
-                    "id": r.value,
-                    "name": r.value.replace('_', ' ').title(),
-                    "description": {
-                        "conservative": "Bajo riesgo, 1-2% por operación",
-                        "moderate": "Riesgo moderado, 2-5% por operación",
-                        "aggressive": "Alto riesgo, 5-10% por operación",
-                        "very_aggressive": "Muy alto riesgo, 10%+ por operación"
-                    }.get(r.value, "")
-                } for r in RiskLevel
-            ]
-        }), 200
-        
-    except Exception as e:
-        logger.error(f"Error obteniendo estrategias: {e}")
-        return jsonify({"error": "Error obteniendo estrategias"}), 500
-
-@app.route('/api/risk-levels', methods=['GET'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-def get_risk_levels():
-    risk_levels = [
-        {
-            "id": RiskLevel.CONSERVATIVE.value,
-            "name": "Conservador",
-            "description": "Ideal para principiantes",
-            "max_risk_per_trade": "1-2%",
-            "max_daily_loss": "5%",
-            "recommended_for": "Traders principiantes o con aversión al riesgo"
-        },
-        {
-            "id": RiskLevel.MODERATE.value,
-            "name": "Moderado",
-            "description": "Balance entre riesgo y recompensa",
-            "max_risk_per_trade": "2-5%",
-            "max_daily_loss": "10%",
-            "recommended_for": "Traders con experiencia media"
-        },
-        {
-            "id": RiskLevel.AGGRESSIVE.value,
-            "name": "Agresivo",
-            "description": "Para traders experimentados",
-            "max_risk_per_trade": "5-10%",
-            "max_daily_loss": "20%",
-            "recommended_for": "Traders experimentados con alta tolerancia al riesgo"
-        },
-        {
-            "id": RiskLevel.VERY_AGGRESSIVE.value,
-            "name": "Muy Agresivo",
-            "description": "Alto riesgo, alta recompensa",
-            "max_risk_per_trade": "10%+",
-            "max_daily_loss": "30%",
-            "recommended_for": "Solo para expertos con capital que pueden perder"
-        }
-    ]
-    
-    return jsonify({"risk_levels": risk_levels}), 200
-
-@app.route('/api/start_bot', methods=['POST'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-@require_auth
-@limiter.limit("5 per minute")
-def start_bot():
-    try:
-        email = session['user_email']
-        
-        with bots_lock:
-            if email in active_bots and active_bots[email].running:
-                return jsonify({
-                    "success": False,
-                    "message": "Ya hay un bot activo para esta cuenta"
-                }), 400
-        
-        data = request.get_json()
-        
-        config = {
-            'symbol': data.get('symbol', 'EURUSD'),
-            'strategies': data.get('strategies', ['support_resistance']),
-            'risk_level': data.get('risk_level', 'moderate'),
-            'money_management': data.get('money_management', 'percentage'),
-            'account_type': data.get('account_type', 'PRACTICE'),
-            'initial_balance': 1000.0,
-            'max_consecutive_losses': int(data.get('max_consecutive_losses', 5)),
-            'max_consecutive_wins': int(data.get('max_consecutive_wins', 0)),
-            'max_daily_trades': int(data.get('max_daily_trades', 20)),
-            'stop_on_profit': float(data.get('stop_on_profit', 0)),
-            'stop_on_loss': float(data.get('stop_on_loss', 0))
-        }
-        
-        valid_strategies = [s.value for s in Strategy]
-        for strategy in config['strategies']:
-            if strategy not in valid_strategies:
-                return jsonify({
-                    "success": False,
-                    "message": f"Estrategia inválida: {strategy}"
-                }), 400
-        
-        iq_api = None
-        with sessions_lock:
-            if email in user_sessions:
-                iq_api = user_sessions[email]
-        
-        if IQ_AVAILABLE and iq_api and hasattr(iq_api, 'get_balance'):
-            try:
-                config['initial_balance'] = iq_api.get_balance()
-            except:
-                pass
-        
-        bot = AdvancedBinaryBot(iq_api, config, email)
-        
-        with bots_lock:
-            active_bots[email] = bot
-        
-        bot.start()
-        
-        return jsonify({
-            "success": True,
-            "message": "Bot iniciado exitosamente",
-            "config": {
-                "symbol": config['symbol'],
-                "strategies": config['strategies'],
-                "risk_level": config['risk_level'],
-                "money_management": config['money_management'],
-                "initial_balance": config['initial_balance'],
-                "limits": {
-                    "max_consecutive_losses": config['max_consecutive_losses'],
-                    "max_consecutive_wins": config['max_consecutive_wins'],
-                    "max_daily_trades": config['max_daily_trades'],
-                    "stop_on_profit": config['stop_on_profit'],
-                    "stop_on_loss": config['stop_on_loss']
-                }
-            }
-        }), 200
-        
-    except Exception as e:
-        logger.error(f"Error iniciando bot: {e}")
-        return jsonify({
-            "success": False,
-            "message": f"Error iniciando bot: {str(e)}"
-        }), 500
-
-@app.route('/api/stop_bot', methods=['POST'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-@require_auth
-def stop_bot():
-    try:
-        email = session['user_email']
-        
-        with bots_lock:
-            if email in active_bots:
-                bot = active_bots[email]
-                status = bot.get_status()
-                bot.stop()
-                del active_bots[email]
-                
-                return jsonify({
-                    "success": True,
-                    "message": "Bot detenido exitosamente",
-                    "final_stats": status['session']
-                }), 200
-            else:
-                return jsonify({
-                    "success": False,
-                    "message": "No hay bot activo"
-                }), 404
-                
-    except Exception as e:
-        logger.error(f"Error deteniendo bot: {e}")
-        return jsonify({
-            "success": False,
-            "message": f"Error: {str(e)}"
-        }), 500
-
-@app.route('/api/bot_status', methods=['GET'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-@require_auth
-def bot_status():
-    try:
-        email = session['user_email']
-        
-        with bots_lock:
-            if email in active_bots and active_bots[email].running:
-                bot = active_bots[email]
-                return jsonify({
-                    "success": True,
-                    "status": bot.get_status()
-                }), 200
-            else:
-                return jsonify({
-                    "success": True,
-                    "status": {
-                        "running": False,
-                        "message": "No hay bot activo"
-                    }
-                }), 200
-                
-    except Exception as e:
-        logger.error(f"Error obteniendo estado: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
-@app.route('/api/live_data', methods=['GET'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-@require_auth
-def get_live_data():
-    try:
-        email = session['user_email']
-        
-        with bots_lock:
-            if email in active_bots and active_bots[email].running:
-                bot = active_bots[email]
-                
-                current_candle = bot._get_current_candle()
-                
-                status = bot.get_status()
-                
-                recent_trades = []
-                if hasattr(bot.session, 'trades'):
-                    for trade in bot.session.trades[-10:]:
-                        recent_trades.append({
-                            'id': trade.id,
-                            'time': trade.entry_time.isoformat(),
-                            'symbol': trade.symbol,
-                            'direction': trade.direction,
-                            'amount': trade.amount,
-                            'result': trade.result,
-                            'profit': trade.profit
-                        })
-                
-                return jsonify({
-                    "success": True,
-                    "data": {
-                        "current_candle": current_candle,
-                        "bot_status": status,
-                        "recent_trades": recent_trades,
-                        "timestamp": datetime.datetime.now().isoformat()
-                    }
-                }), 200
-            else:
-                return jsonify({
-                    "success": False,
-                    "message": "No hay bot activo"
-                }), 404
-                
-    except Exception as e:
-        logger.error(f"Error obteniendo datos en vivo: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
-@app.route('/api/trading_history', methods=['GET'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-@require_auth
-def get_trading_history():
-    try:
-        email = session['user_email']
-        
-        page = int(request.args.get('page', 1))
-        per_page = int(request.args.get('per_page', 50))
-        
-        trades = []
-        
-        with bots_lock:
-            if email in active_bots:
-                bot = active_bots[email]
-                if hasattr(bot.session, 'trades'):
-                    for trade in bot.session.trades:
-                        trades.append({
-                            'id': trade.id,
-                            'timestamp': trade.entry_time.isoformat(),
-                            'symbol': trade.symbol,
-                            'direction': trade.direction,
-                            'amount': trade.amount,
-                            'entry_price': trade.entry_price,
-                            'strategy': trade.strategy.value,
-                            'confidence': trade.confidence,
-                            'result': trade.result,
-                            'profit': trade.profit,
-                            'expiry_time': trade.expiry_time
-                        })
-        
-        trades.sort(key=lambda x: x['timestamp'], reverse=True)
-        
-        start = (page - 1) * per_page
-        end = start + per_page
-        paginated_trades = trades[start:end]
-        
-        return jsonify({
-            "success": True,
-            "trades": paginated_trades,
-            "pagination": {
-                "page": page,
-                "per_page": per_page,
-                "total": len(trades),
-                "pages": math.ceil(len(trades) / per_page)
-            }
-        }), 200
-        
-    except Exception as e:
-        logger.error(f"Error obteniendo historial: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
-@app.route('/api/performance', methods=['GET'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-@require_auth
-def get_performance():
-    try:
-        email = session['user_email']
-        
-        performance = {
-            "total_trades": 0,
-            "winning_trades": 0,
-            "losing_trades": 0,
-            "win_rate": 0.0,
-            "total_profit": 0.0,
-            "profit_factor": 0.0,
-            "max_drawdown": 0.0,
-            "sharpe_ratio": 0.0,
-            "average_win": 0.0,
-            "average_loss": 0.0,
-            "best_trade": 0.0,
-            "worst_trade": 0.0,
-            "consecutive_wins": 0,
-            "consecutive_losses": 0,
-            "by_strategy": {},
-            "by_timeframe": {},
-            "daily_performance": []
-        }
-        
-        with bots_lock:
-            if email in active_bots:
-                bot = active_bots[email]
-                session = bot.session
-                
-                performance.update({
-                    "total_trades": session.total_trades,
-                    "winning_trades": session.winning_trades,
-                    "losing_trades": session.losing_trades,
-                    "win_rate": session.win_rate,
-                    "total_profit": session.total_profit,
-                    "profit_factor": session.profit_factor,
-                    "max_drawdown": session.max_drawdown,
-                    "consecutive_wins": session.max_consecutive_wins,
-                    "consecutive_losses": session.max_consecutive_losses
-                })
-                
-                if session.trades:
-                    wins = [t.profit for t in session.trades if t.profit and t.profit > 0]
-                    losses = [t.profit for t in session.trades if t.profit and t.profit < 0]
-                    
-                    if wins:
-                        performance["average_win"] = np.mean(wins)
-                        performance["best_trade"] = max(wins)
-                    
-                    if losses:
-                        performance["average_loss"] = np.mean(losses)
-                        performance["worst_trade"] = min(losses)
-                    
-                    for trade in session.trades:
-                        strategy = trade.strategy.value
-                        if strategy not in performance["by_strategy"]:
-                            performance["by_strategy"][strategy] = {
-                                "trades": 0,
-                                "wins": 0,
-                                "profit": 0.0
-                            }
-                        
-                        performance["by_strategy"][strategy]["trades"] += 1
-                        if trade.result == "win":
-                            performance["by_strategy"][strategy]["wins"] += 1
-                        if trade.profit:
-                            performance["by_strategy"][strategy]["profit"] += trade.profit
-        
-        return jsonify({
-            "success": True,
-            "performance": performance
-        }), 200
-        
-    except Exception as e:
-        logger.error(f"Error obteniendo rendimiento: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
-@app.route('/api/update_config', methods=['POST'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-@require_auth
-def update_config():
-    try:
-        email = session['user_email']
-        data = request.get_json()
-        
-        with bots_lock:
-            if email not in active_bots or not active_bots[email].running:
-                return jsonify({
-                    "success": False,
-                    "message": "No hay bot activo"
-                }), 404
-            
-            bot = active_bots[email]
-            
-            if 'max_consecutive_losses' in data:
-                bot.max_consecutive_losses = int(data['max_consecutive_losses'])
-            
-            if 'max_consecutive_wins' in data:
-                bot.max_consecutive_wins = int(data['max_consecutive_wins'])
-            
-            if 'max_daily_trades' in data:
-                bot.max_daily_trades = int(data['max_daily_trades'])
-            
-            if 'stop_on_profit' in data:
-                bot.stop_on_profit = float(data['stop_on_profit'])
-            
-            if 'stop_on_loss' in data:
-                bot.stop_on_loss = float(data['stop_on_loss'])
-            
-            if 'min_time_between_trades' in data:
-                bot.min_time_between_trades = int(data['min_time_between_trades'])
-            
-            return jsonify({
-                "success": True,
-                "message": "Configuración actualizada",
-                "updated_config": {
-                    "max_consecutive_losses": bot.max_consecutive_losses,
-                    "max_consecutive_wins": bot.max_consecutive_wins,
-                    "max_daily_trades": bot.max_daily_trades,
-                    "stop_on_profit": bot.stop_on_profit,
-                    "stop_on_loss": bot.stop_on_loss,
-                    "min_time_between_trades": bot.min_time_between_trades
-                }
-            }), 200
-            
-    except Exception as e:
-        logger.error(f"Error actualizando configuración: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
-@app.route('/api/logout', methods=['POST'])
-@cross_origin(origins=FRONTEND_DOMAINS)
-def logout():
-    try:
-        email = session.get('user_email')
-        
-        if email:
-            with bots_lock:
-                if email in active_bots:
-                    active_bots[email].stop()
-                    del active_bots[email]
-            
-            with sessions_lock:
-                if email in user_sessions:
-                    if IQ_AVAILABLE and hasattr(user_sessions[email], 'close_websocket'):@app.route('/', methods=['GET'])
-def index():
-    return '''<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bot Profesional de Opciones Binarias - IQ Option</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #333;
-        }
-        
-        .container {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
-            padding: 50px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            max-width: 900px;
-            width: 100%;
-            backdrop-filter: blur(10px);
-        }
-        
-        h1 {
-            color: #1e3c72;
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            text-align: center;
-        }
-        
-        h2 {
-            color: #2a5298;
-            font-size: 1.5em;
-            margin-bottom: 30px;
-            text-align: center;
-            font-weight: 400;
-        }
-        
-        .status-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin: 40px 0;
-        }
-        
-        .status-card {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            border-radius: 10# main.py - Backend Profesional para Bot de Opciones Binarias IQ Option
-# Con estrategias mejoradas, gestión de riesgo avanzada y datos en tiempo real
-
-import os
-import sys
-import logging
-import datetime
-import time
-import requests
-import numpy as np
-import pandas as pd
-from functools import wraps
-from threading import Thread, Lock, Event, Timer
-import json
-import math
-import signal
-import atexit
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Any
-from enum import Enum
-from collections import deque
-import asyncio
-import websocket
-from concurrent.futures import ThreadPoolExecutor
-
-# Configuración de logging mejorada
-log_format = '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+# Configuración de logging
 logging.basicConfig(
     level=logging.INFO,
-    format=log_format,
-    handlers=[
-        logging.FileHandler('/tmp/iqoption_bot.log'),
-        logging.StreamHandler()
-    ]
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-# Flask y extensiones
-from flask import Flask, request, jsonify, session, make_response
-from flask_cors import CORS, cross_origin
-from flask_session import Session
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
-from flask_socketio import SocketIO, emit, join_room, leave_room
-
-# Importar IQOptionAPI
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-try:
-    from iqoptionapi.stable_api import IQ_Option
-    IQ_AVAILABLE = True
-    logger.info("✅ IQOptionAPI cargada correctamente")
-except ImportError as e:
-    logger.error(f"❌ Error cargando IQOptionAPI: {e}")
-    IQ_AVAILABLE = False
-
-# ============================================================================
-# CONFIGURACIÓN FLASK Y SOCKETIO
-# ============================================================================
-
+# Configuración de Flask
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'iqoption-bot-secure-2024')
-app.config['SESSION_TYPE'] = 'filesystem'
-app.config['SESSION_FILE_DIR'] = '/tmp/flask_sessions'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
+app.config['SESSION_TYPE'] = 'redis'
+app.config['SESSION_REDIS'] = redis.from_url(os.environ.get('REDIS_URL', 'redis://localhost:6379'))
 app.config['SESSION_PERMANENT'] = True
-app.config['PERMANENT_SESSION_LIFETIME'] = 3600 * 24
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'
 
-# SocketIO para comunicación en tiempo real
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
-
-# CORS mejorado
-FRONTEND_DOMAINS = [
-    "https://iqoptionbot.ct.ws",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000"
-]
-
-CORS(app, 
-     origins=FRONTEND_DOMAINS,
-     methods=['GET', 'POST', 'OPTIONS'],
-     allow_headers=['Content-Type', 'Authorization', 'Accept', 'Origin'],
-     supports_credentials=True,
-     max_age=3600)
-
+# Inicializar sesión
 Session(app)
 
-# Rate limiting
-limiter = Limiter(
-    app=app,
-    key_func=get_remote_address,
-    storage_uri="memory://",
-    default_limits=["2000 per day", "300 per hour"]
-)
+# Inicializar gestor de sesiones
+redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
+init_session_manager(redis_url)
 
-# Variables globales mejoradas
-user_sessions = {}
-active_bots = {}
-market_data_streams = {}
-sessions_lock = Lock()
-bots_lock = Lock()
-data_lock = Lock()
+# Inicializar base de datos
+init_database(redis_url)
 
-# Telegram
-TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', "7787754995:AAEvM36bO9B4SvGA1cr1VP1j-Rx6on5LrjM")
-TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', "7009100334")
+# Inicializar monitoreo
+init_monitoring(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
 
-# Pool de threads para operaciones asíncronas
-executor = ThreadPoolExecutor(max_workers=10)
+# Configurar CORS
+CORS(app, supports_credentials=True, origins=['https://iqoptionbot.ct.ws'])
 
-# ============================================================================
-# ENUMS Y CONFIGURACIÓN MEJORADA
-# ============================================================================
+# Configurar headers de seguridad
+@app.after_request
+def after_request(response):
+    return add_security_headers(response)
 
-class RiskLevel(Enum):
-    CONSERVATIVE = "conservative"
-    MODERATE = "moderate"
-    AGGRESSIVE = "aggressive"
-    VERY_AGGRESSIVE = "very_aggressive"
+# Telegram configuration
+TELEGRAM_BOT_TOKEN = "8147187392:AAFMyIC0EL0-9u63MzEfDqvqytujQFoVSLE"
+TELEGRAM_CHAT_ID = "7009100334"
 
-class Strategy(Enum):
-    SUPPORT_RESISTANCE = "support_resistance"
-    TREND_FOLLOWING = "trend_following"
-    BOLLINGER_BOUNCE = "bollinger_bounce"
-    RSI_DIVERGENCE = "rsi_divergence"
-    MACD_CROSS = "macd_cross"
-    BREAKOUT = "breakout"
-    NEWS_TRADING = "news_trading"
-    MOMENTUM_SCALPING = "momentum_scalping"
-    MULTI_INDICATOR = "multi_indicator"
-    AI_PATTERN = "ai_pattern"
+# Global bot instances storage
+active_bots: Dict[str, 'TradingBot'] = {}
 
-class MoneyManagement(Enum):
-    FIXED_AMOUNT = "fixed_amount"
-    PERCENTAGE = "percentage"
-    MARTINGALE = "martingale"
-    ANTI_MARTINGALE = "anti_martingale"
-    FIBONACCI = "fibonacci"
-    KELLY_CRITERION = "kelly_criterion"
-
-# Configuración detallada de estrategias
-STRATEGY_CONFIG = {
-    Strategy.SUPPORT_RESISTANCE: {
-        "name": "Soporte y Resistencia",
-        "description": "Opera en rebotes de niveles clave identificados automáticamente",
-        "risk_level": RiskLevel.CONSERVATIVE,
-        "timeframes": [60, 300, 900],
+# Trading strategies configuration
+STRATEGIES = {
+    "conservative_rsi": {
+        "name": "RSI Conservador",
+        "risk_level": "very_low",
+        "description": "Utiliza RSI con confirmación de tendencia",
         "min_confidence": 75,
-        "indicators": ["support_resistance", "volume", "rsi"],
-        "expected_win_rate": 65,
-        "avg_trades_per_hour": 2,
-        "best_sessions": ["london", "new_york"],
-        "avoid_news": True
+        "timeframe": 60,
+        "indicators": ["rsi", "ema"],
+        "max_loss_multiplier": 1.5
     },
-    Strategy.TREND_FOLLOWING: {
-        "name": "Seguimiento de Tendencia",
-        "description": "Identifica y sigue tendencias fuertes con confirmación múltiple",
-        "risk_level": RiskLevel.CONSERVATIVE,
-        "timeframes": [300, 900, 1800],
+    "macd_cross": {
+        "name": "Cruce MACD",
+        "risk_level": "low",
+        "description": "Señales basadas en cruces de MACD",
         "min_confidence": 70,
-        "indicators": ["ema", "macd", "adx", "volume"],
-        "expected_win_rate": 62,
-        "avg_trades_per_hour": 3,
-        "best_sessions": ["london", "new_york"],
-        "avoid_news": False
+        "timeframe": 60,
+        "indicators": ["macd", "ema"],
+        "max_loss_multiplier": 2.0
     },
-    Strategy.BOLLINGER_BOUNCE: {
-        "name": "Rebote en Bandas de Bollinger",
-        "description": "Opera reversiones en los extremos de las bandas con filtros adicionales",
-        "risk_level": RiskLevel.MODERATE,
-        "timeframes": [60, 300],
+    "bollinger_bounce": {
+        "name": "Rebote Bollinger",
+        "risk_level": "medium",
+        "description": "Opera rebotes en bandas de Bollinger",
         "min_confidence": 65,
-        "indicators": ["bollinger_bands", "rsi", "stochastic"],
-        "expected_win_rate": 58,
-        "avg_trades_per_hour": 4,
-        "best_sessions": ["all"],
-        "avoid_news": True
+        "timeframe": 60,
+        "indicators": ["bollinger", "rsi"],
+        "max_loss_multiplier": 2.5
     },
-    Strategy.RSI_DIVERGENCE: {
-        "name": "Divergencias RSI",
-        "description": "Detecta divergencias entre precio y RSI para anticipar reversiones",
-        "risk_level": RiskLevel.MODERATE,
-        "timeframes": [300, 900],
-        "min_confidence": 68,
-        "indicators": ["rsi", "price_action", "volume"],
-        "expected_win_rate": 56,
-        "avg_trades_per_hour": 2,
-        "best_sessions": ["london", "new_york"],
-        "avoid_news": True
-    },
-    Strategy.MACD_CROSS: {
-        "name": "Cruce MACD Optimizado",
-        "description": "Cruces MACD con filtros de tendencia y momentum",
-        "risk_level": RiskLevel.MODERATE,
-        "timeframes": [300, 900],
+    "multi_indicator": {
+        "name": "Multi-Indicador",
+        "risk_level": "medium",
+        "description": "Combina RSI, MACD y Stochastic",
         "min_confidence": 60,
-        "indicators": ["macd", "ema", "atr"],
-        "expected_win_rate": 55,
-        "avg_trades_per_hour": 3,
-        "best_sessions": ["london", "new_york"],
-        "avoid_news": False
+        "timeframe": 60,
+        "indicators": ["rsi", "macd", "stochastic"],
+        "max_loss_multiplier": 3.0
     },
-    Strategy.BREAKOUT: {
-        "name": "Ruptura de Rangos",
-        "description": "Opera rupturas de consolidaciones y rangos con volumen",
-        "risk_level": RiskLevel.AGGRESSIVE,
-        "timeframes": [60, 300],
+    "momentum_scalper": {
+        "name": "Scalping Momentum",
+        "risk_level": "high",
+        "description": "Operaciones rápidas basadas en momentum",
         "min_confidence": 55,
-        "indicators": ["atr", "volume", "bollinger_bands"],
-        "expected_win_rate": 48,
-        "avg_trades_per_hour": 5,
-        "best_sessions": ["london_open", "new_york_open"],
-        "avoid_news": False
-    },
-    Strategy.NEWS_TRADING: {
-        "name": "Trading de Noticias",
-        "description": "Opera la volatilidad generada por noticias económicas importantes",
-        "risk_level": RiskLevel.VERY_AGGRESSIVE,
-        "timeframes": [60],
-        "min_confidence": 50,
-        "indicators": ["atr", "volume_spike"],
-        "expected_win_rate": 45,
-        "avg_trades_per_hour": 1,
-        "best_sessions": ["news_events"],
-        "avoid_news": False
-    },
-    Strategy.MOMENTUM_SCALPING: {
-        "name": "Scalping de Momentum",
-        "description": "Operaciones rápidas siguiendo el momentum del mercado",
-        "risk_level": RiskLevel.AGGRESSIVE,
-        "timeframes": [60],
-        "min_confidence": 52,
-        "indicators": ["momentum", "volume", "ema_fast"],
-        "expected_win_rate": 47,
-        "avg_trades_per_hour": 8,
-        "best_sessions": ["high_volatility"],
-        "avoid_news": False
-    },
-    Strategy.MULTI_INDICATOR: {
-        "name": "Multi-Indicador Avanzado",
-        "description": "Combina múltiples indicadores con machine learning básico",
-        "risk_level": RiskLevel.MODERATE,
-        "timeframes": [300, 900],
-        "min_confidence": 70,
-        "indicators": ["all"],
-        "expected_win_rate": 60,
-        "avg_trades_per_hour": 3,
-        "best_sessions": ["london", "new_york"],
-        "avoid_news": True
-    },
-    Strategy.AI_PATTERN: {
-        "name": "Reconocimiento de Patrones IA",
-        "description": "Utiliza patrones históricos y análisis predictivo",
-        "risk_level": RiskLevel.MODERATE,
-        "timeframes": [300, 900],
-        "min_confidence": 72,
-        "indicators": ["pattern_recognition", "ml_signals"],
-        "expected_win_rate": 63,
-        "avg_trades_per_hour": 2,
-        "best_sessions": ["all"],
-        "avoid_news": True
+        "timeframe": 60,
+        "indicators": ["cci", "atr", "ema"],
+        "max_loss_multiplier": 4.0
     }
 }
 
-# ============================================================================
-# CLASES DE DATOS MEJORADAS
-# ============================================================================
-
-@dataclass
-class Trade:
-    id: str
-    symbol: str
-    direction: str
-    amount: float
-    entry_price: float
-    entry_time: datetime.datetime
-    expiry_time: int
-    strategy: Strategy
-    confidence: float
-    indicators_data: Dict[str, Any]
-    result: Optional[str] = None
-    exit_price: Optional[float] = None
-    profit: Optional[float] = None
+class TradingBot:
+    def __init__(self, user_id: str, api: IQ_Option, config: dict):
+        self.user_id = user_id
+        self.api = api
+        self.config = config
+        self.running = False
+        self.operations_count = 0
+        self.consecutive_losses = 0
+        self.session_profit = 0
+        self.strategy = STRATEGIES[config['strategy']]
+        self.results_history = []
+        
+    async def start(self):
+        """Inicia el bot de trading"""
+        self.running = True
+        logger.info(f"Bot iniciado para usuario {self.user_id}")
+        
+        try:
+            while self.running:
+                # Verificar límites
+                if self._check_limits():
+                    logger.info("Límites alcanzados, deteniendo bot")
+                    break
+                
+                # Analizar mercado
+                signal = await self._analyze_market()
+                
+                if signal and signal['confidence'] >= self.strategy['min_confidence']:
+                    # Ejecutar operación
+                    result = await self._execute_trade(signal)
+                    self._update_stats(result)
+                
+                # Esperar antes de la siguiente análisis
+                await asyncio.sleep(10)
+                
+        except Exception as e:
+            logger.error(f"Error en bot: {str(e)}")
+            logger.error(traceback.format_exc())
+        finally:
+            self.running = False
+            logger.info(f"Bot detenido para usuario {self.user_id}")
     
-@dataclass
-class MarketData:
-    symbol: str
-    timeframe: int
-    timestamp: datetime.datetime
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: float
-    indicators: Dict[str, float] = field(default_factory=dict)
-
-@dataclass
-class TradingSession:
-    start_time: datetime.datetime
-    end_time: Optional[datetime.datetime] = None
-    initial_balance: float = 0.0
-    current_balance: float = 0.0
-    trades: List[Trade] = field(default_factory=list)
-    total_trades: int = 0
-    winning_trades: int = 0
-    losing_trades: int = 0
-    total_profit: float = 0.0
-    max_drawdown: float = 0.0
-    current_drawdown: float = 0.0
-    consecutive_wins: int = 0
-    consecutive_losses: int = 0
-    max_consecutive_wins: int = 0
-    max_consecutive_losses: int = 0
+    def stop(self):
+        """Detiene el bot"""
+        self.running = False
     
-    def add_trade(self, trade: Trade):
-        self.trades.append(trade)
-        self.total_trades += 1
-        
-        if trade.result == "win":
-            self.winning_trades += 1
-            self.consecutive_wins += 1
-            self.consecutive_losses = 0
-            self.max_consecutive_wins = max(self.max_consecutive_wins, self.consecutive_wins)
-        elif trade.result == "loss":
-            self.losing_trades += 1
-            self.consecutive_losses += 1
-            self.consecutive_wins = 0
-            self.max_consecutive_losses = max(self.max_consecutive_losses, self.consecutive_losses)
-            
-        if trade.profit:
-            self.total_profit += trade.profit
-            self.current_balance += trade.profit
-            
-        peak_balance = max(self.initial_balance, self.current_balance)
-        self.current_drawdown = (peak_balance - self.current_balance) / peak_balance * 100
-        self.max_drawdown = max(self.max_drawdown, self.current_drawdown)
-    
-    @property
-    def win_rate(self) -> float:
-        if self.total_trades == 0:
-            return 0.0
-        return (self.winning_trades / self.total_trades) * 100
-    
-    @property
-    def profit_factor(self) -> float:
-        total_wins = sum(t.profit for t in self.trades if t.profit and t.profit > 0)
-        total_losses = abs(sum(t.profit for t in self.trades if t.profit and t.profit < 0))
-        if total_losses == 0:
-            return float('inf') if total_wins > 0 else 0
-        return total_wins / total_losses
-
-# ============================================================================
-# ANÁLISIS TÉCNICO MEJORADO
-# ============================================================================
-
-class TechnicalAnalysis:
-    @staticmethod
-    def calculate_sma(data: List[float], period: int) -> float:
-        if len(data) < period:
-            return None
-        return sum(data[-period:]) / period
-    
-    @staticmethod
-    def calculate_ema(data: List[float], period: int) -> float:
-        if len(data) < period:
-            return None
-        
-        multiplier = 2 / (period + 1)
-        ema = sum(data[:period]) / period
-        
-        for price in data[period:]:
-            ema = (price - ema) * multiplier + ema
-        
-        return ema
-    
-    @staticmethod
-    def calculate_rsi(data: List[float], period: int = 14) -> float:
-        if len(data) < period + 1:
-            return None
-        
-        gains = []
-        losses = []
-        
-        for i in range(1, len(data)):
-            change = data[i] - data[i-1]
-            if change > 0:
-                gains.append(change)
-                losses.append(0)
-            else:
-                gains.append(0)
-                losses.append(abs(change))
-        
-        avg_gain = sum(gains[-period:]) / period
-        avg_loss = sum(losses[-period:]) / period
-        
-        if avg_loss == 0:
-            return 100
-        
-        rs = avg_gain / avg_loss
-        rsi = 100 - (100 / (1 + rs))
-        
-        return rsi
-    
-    @staticmethod
-    def calculate_bollinger_bands(data: List[float], period: int = 20, std_dev: int = 2) -> Tuple[float, float, float]:
-        if len(data) < period:
-            return None, None, None
-        
-        sma = sum(data[-period:]) / period
-        variance = sum((x - sma) ** 2 for x in data[-period:]) / period
-        std = math.sqrt(variance)
-        
-        upper_band = sma + (std * std_dev)
-        lower_band = sma - (std * std_dev)
-        
-        return upper_band, sma, lower_band
-    
-    @staticmethod
-    def calculate_macd(data: List[float], fast: int = 12, slow: int = 26, signal: int = 9) -> Tuple[float, float, float]:
-        if len(data) < slow + signal:
-            return None, None, None
-        
-        ema_fast = TechnicalAnalysis.calculate_ema(data, fast)
-        ema_slow = TechnicalAnalysis.calculate_ema(data, slow)
-        
-        if ema_fast is None or ema_slow is None:
-            return None, None, None
-        
-        macd_line = ema_fast - ema_slow
-        
-        macd_values = []
-        for i in range(slow, len(data)):
-            ema_f = TechnicalAnalysis.calculate_ema(data[:i+1], fast)
-            ema_s = TechnicalAnalysis.calculate_ema(data[:i+1], slow)
-            if ema_f and ema_s:
-                macd_values.append(ema_f - ema_s)
-        
-        signal_line = TechnicalAnalysis.calculate_ema(macd_values, signal)
-        histogram = macd_line - signal_line if signal_line else None
-        
-        return macd_line, signal_line, histogram
-    
-    @staticmethod
-    def calculate_stochastic(high: List[float], low: List[float], close: List[float], period: int = 14) -> Tuple[float, float]:
-        if len(high) < period or len(low) < period or len(close) < period:
-            return None, None
-        
-        lowest_low = min(low[-period:])
-        highest_high = max(high[-period:])
-        
-        if highest_high == lowest_low:
-            return 50, 50
-        
-        k = ((close[-1] - lowest_low) / (highest_high - lowest_low)) * 100
-        
-        k_values = []
-        for i in range(period, len(close)):
-            ll = min(low[i-period+1:i+1])
-            hh = max(high[i-period+1:i+1])
-            if hh != ll:
-                k_val = ((close[i] - ll) / (hh - ll)) * 100
-                k_values.append(k_val)
-        
-        d = sum(k_values[-3:]) / 3 if len(k_values) >= 3 else k
-        
-        return k, d
-    
-    @staticmethod
-    def find_support_resistance(data: List[float], window: int = 20) -> Tuple[List[float], List[float]]:
-        if len(data) < window * 2:
-            return [], []
-        
-        supports = []
-        resistances = []
-        
-        for i in range(window, len(data) - window):
-            if all(data[i] <= data[j] for j in range(i - window, i + window + 1)):
-                supports.append(data[i])
-            
-            if all(data[i] >= data[j] for j in range(i - window, i + window + 1)):
-                resistances.append(data[i])
-        
-        def group_levels(levels, threshold=0.001):
-            if not levels:
-                return []
-            
-            grouped = []
-            levels.sort()
-            current_group = [levels[0]]
-            
-            for level in levels[1:]:
-                if abs(level - current_group[-1]) / current_group[-1] < threshold:
-                    current_group.append(level)
-                else:
-                    grouped.append(sum(current_group) / len(current_group))
-                    current_group = [level]
-            
-            grouped.append(sum(current_group) / len(current_group))
-            return grouped
-        
-        return group_levels(supports), group_levels(resistances)
-
-# ============================================================================
-# GESTIÓN DE RIESGO AVANZADA
-# ============================================================================
-
-class RiskManager:
-    def __init__(self, initial_balance: float, risk_level: RiskLevel):
-        self.initial_balance = initial_balance
-        self.current_balance = initial_balance
-        self.risk_level = risk_level
-        self.max_risk_per_trade = self._get_max_risk_percentage()
-        self.max_daily_loss = self._get_max_daily_loss()
-        self.daily_loss = 0.0
-        self.trade_history = deque(maxlen=100)
-        
-    def _get_max_risk_percentage(self) -> float:
-        risk_map = {
-            RiskLevel.CONSERVATIVE: 0.01,
-            RiskLevel.MODERATE: 0.025,
-            RiskLevel.AGGRESSIVE: 0.05,
-            RiskLevel.VERY_AGGRESSIVE: 0.1
-        }
-        return risk_map.get(self.risk_level, 0.02)
-    
-    def _get_max_daily_loss(self) -> float:
-        loss_map = {
-            RiskLevel.CONSERVATIVE: 0.05,
-            RiskLevel.MODERATE: 0.10,
-            RiskLevel.AGGRESSIVE: 0.20,
-            RiskLevel.VERY_AGGRESSIVE: 0.30
-        }
-        return self.initial_balance * loss_map.get(self.risk_level, 0.10)
-    
-    def calculate_position_size(self, confidence: float, money_management: MoneyManagement, 
-                              consecutive_losses: int = 0, win_rate: float = 0.5) -> float:
-        if self.daily_loss >= self.max_daily_loss:
-            logger.warning("Límite de pérdida diaria alcanzado")
-            return 0
-        
-        base_amount = self.current_balance * self.max_risk_per_trade
-        
-        if money_management == MoneyManagement.FIXED_AMOUNT:
-            return min(base_amount, self.current_balance * 0.05)
-        
-        elif money_management == MoneyManagement.PERCENTAGE:
-            confidence_multiplier = confidence / 100
-            return base_amount * confidence_multiplier
-        
-        elif money_management == MoneyManagement.MARTINGALE:
-            max_multiplier = 8
-            multiplier = min(2 ** consecutive_losses, max_multiplier)
-            amount = base_amount * multiplier
-            return min(amount, self.current_balance * 0.10)
-        
-        elif money_management == MoneyManagement.ANTI_MARTINGALE:
-            if consecutive_losses > 0:
-                return base_amount * 0.5
-            else:
-                return base_amount * 1.5
-        
-        elif money_management == MoneyManagement.FIBONACCI:
-            fib_sequence = [1, 1, 2, 3, 5, 8, 13, 21]
-            index = min(consecutive_losses, len(fib_sequence) - 1)
-            multiplier = fib_sequence[index]
-            amount = base_amount * multiplier
-            return min(amount, self.current_balance * 0.10)
-        
-        elif money_management == MoneyManagement.KELLY_CRITERION:
-            if win_rate <= 0 or win_rate >= 1:
-                return base_amount
-            
-            payout = 0.8
-            kelly_percentage = (payout * win_rate - (1 - win_rate)) / payout
-            kelly_fraction = 0.25
-            amount = self.current_balance * kelly_percentage * kelly_fraction
-            return max(min(amount, self.current_balance * 0.05), self.current_balance * 0.01)
-        
-        return base_amount
-    
-    def update_balance(self, profit: float):
-        self.current_balance += profit
-        if profit < 0:
-            self.daily_loss += abs(profit)
-        
-        self.trade_history.append({
-            'profit': profit,
-            'balance': self.current_balance,
-            'timestamp': datetime.datetime.now()
-        })
-    
-    def reset_daily_limits(self):
-        self.daily_loss = 0.0
-    
-    def should_stop_trading(self, consecutive_losses: int) -> bool:
-        if self.daily_loss >= self.max_daily_loss:
+    def _check_limits(self) -> bool:
+        """Verifica si se han alcanzado los límites configurados"""
+        # Límite de operaciones
+        if self.config['max_operations'] > 0 and self.operations_count >= self.config['max_operations']:
+            send_telegram_notification(
+                f"🛑 Bot detenido - Límite de operaciones alcanzado ({self.operations_count})"
+            )
             return True
         
-        if self.current_balance <= self.initial_balance * 0.5:
-            return True
-        
-        max_consecutive_losses = {
-            RiskLevel.CONSERVATIVE: 3,
-            RiskLevel.MODERATE: 5,
-            RiskLevel.AGGRESSIVE: 7,
-            RiskLevel.VERY_AGGRESSIVE: 10
-        }
-        
-        if consecutive_losses >= max_consecutive_losses.get(self.risk_level, 5):
+        # Límite de pérdidas consecutivas
+        if self.consecutive_losses >= self.config['max_loss_operations']:
+            send_telegram_notification(
+                f"🚨 Bot detenido - Pérdidas consecutivas: {self.consecutive_losses}"
+            )
             return True
         
         return False
-
-# ============================================================================
-# BOT DE TRADING MEJORADO
-# ============================================================================
-
-class AdvancedBinaryBot:
-    def __init__(self, iq_api, config: Dict[str, Any], email: str):
-        self.iq_api = iq_api
-        self.config = config
-        self.email = email
-        self.running = False
-        self.thread = None
-        
-        self.symbol = config.get('symbol', 'EURUSD')
-        self.strategies = [Strategy(s) for s in config.get('strategies', ['support_resistance'])]
-        self.money_management = MoneyManagement(config.get('money_management', 'percentage'))
-        self.risk_level = RiskLevel(config.get('risk_level', 'moderate'))
-        
-        initial_balance = config.get('initial_balance', 1000)
-        self.risk_manager = RiskManager(initial_balance, self.risk_level)
-        
-        self.session = TradingSession(
-            start_time=datetime.datetime.now(),
-            initial_balance=initial_balance,
-            current_balance=initial_balance
-        )
-        
-        self.candles_data = {
-            60: deque(maxlen=500),
-            300: deque(maxlen=200),
-            900: deque(maxlen=100),
-            1800: deque(maxlen=50)
-        }
-        
-        self.ws_running = False
-        self.ws_thread = None
-        
-        self.min_time_between_trades = 30
-        self.last_trade_time = None
-        self.pending_signals = deque(maxlen=10)
-        
-        self.max_consecutive_losses = config.get('max_consecutive_losses', 5)
-        self.max_consecutive_wins = config.get('max_consecutive_wins', 0)
-        self.max_daily_trades = config.get('max_daily_trades', 20)
-        self.stop_on_profit = config.get('stop_on_profit', 0)
-        self.stop_on_loss = config.get('stop_on_loss', 0)
-        
-        logger.info(f"Bot inicializado para {email} con estrategias: {[s.value for s in self.strategies]}")
     
-    def start(self):
-        if self.running:
-            logger.warning("El bot ya está en ejecución")
-            return
-        
-        self.running = True
-        self.session.start_time = datetime.datetime.now()
-        
-        self._start_data_collection()
-        
-        self.thread = Thread(target=self._run, daemon=True)
-        self.thread.start()
-        
-        logger.info(f"🚀 Bot iniciado exitosamente para {self.email}")
-        self._send_telegram_notification(
-            f"🚀 *BOT INICIADO*\n"
-            f"👤 Usuario: {self.email}\n"
-            f"📈 Estrategias: {', '.join([s.value for s in self.strategies])}\n"
-            f"💰 Balance: ${self.session.initial_balance:.2f}\n"
-            f"🎯 Gestión: {self.money_management.value}\n"
-            f"⚠️ Riesgo: {self.risk_level.value}"
-        )
-    
-    def stop(self):
-        if not self.running:
-            return
-        
-        logger.info("Deteniendo bot...")
-        self.running = False
-        self.ws_running = False
-        
-        if self.thread:
-            self.thread.join(timeout=5)
-        
-        if self.ws_thread:
-            self.ws_thread.join(timeout=5)
-        
-        self.session.end_time = datetime.datetime.now()
-        
-        self._send_final_report()
-        logger.info(f"🛑 Bot detenido para {self.email}")
-    
-    def _start_data_collection(self):
-        if IQ_AVAILABLE and self.iq_api:
-            try:
-                self.iq_api.start_candles_stream(self.symbol, 60)
-                
-                self.ws_running = True
-                self.ws_thread = Thread(target=self._websocket_handler, daemon=True)
-                self.ws_thread.start()
-                
-                logger.info(f"📊 Recolección de datos iniciada para {self.symbol}")
-            except Exception as e:
-                logger.error(f"Error iniciando recolección de datos: {e}")
-    
-    def _websocket_handler(self):
-        while self.ws_running and self.running:
-            try:
-                if IQ_AVAILABLE and self.iq_api:
-                    candles = self.iq_api.get_realtime_candles(self.symbol, 60)
-                    
-                    if candles:
-                        for candle_data in candles:
-                            self._process_candle(candle_data)
-                    
-                    if self.email in market_data_streams:
-                        current_candle = self._get_current_candle()
-                        if current_candle:
-                            socketio.emit('candle_update', {
-                                'symbol': self.symbol,
-                                'candle': current_candle
-                            }, room=self.email)
-                
-                time.sleep(1)
-                
-            except Exception as e:
-                logger.error(f"Error en WebSocket handler: {e}")
-                time.sleep(5)
-    
-    def _process_candle(self, candle_data):
+    async def _analyze_market(self) -> Optional[dict]:
+        """Analiza el mercado y genera señales"""
         try:
-            market_data = MarketData(
-                symbol=self.symbol,
-                timeframe=60,
-                timestamp=datetime.datetime.fromtimestamp(candle_data.get('from', 0)),
-                open=candle_data.get('open', 0),
-                high=candle_data.get('max', 0),
-                low=candle_data.get('min', 0),
-                close=candle_data.get('close', 0),
-                volume=candle_data.get('volume', 0)
-            )
+            symbol = self.config['symbol']
+            timeframe = self.strategy['timeframe']
             
-            self.candles_data[60].append(market_data)
-            self._aggregate_candles(market_data)
+            # Obtener datos históricos
+            candles = self.api.get_candles(symbol, timeframe, 100, time.time())
+            
+            if not candles:
+                return None
+            
+            # Convertir a DataFrame
+            df = pd.DataFrame(candles)
+            df['time'] = pd.to_datetime(df['from'], unit='s')
+            df.set_index('time', inplace=True)
+            
+            # Calcular indicadores técnicos
+            indicators = self._calculate_indicators(df)
+            
+            # Generar señal según la estrategia
+            signal = self._generate_signal(indicators, df)
+            
+            return signal
             
         except Exception as e:
-            logger.error(f"Error procesando vela: {e}")
-    
-    def _aggregate_candles(self, candle: MarketData):
-        pass
-    
-    def _run(self):
-        try:
-            logger.info("Recopilando datos iniciales...")
-            time.sleep(10)
-            
-            while self.running:
-                try:
-                    if self._should_stop_trading():
-                        logger.info("Límites de trading alcanzados, deteniendo bot")
-                        self.stop()
-                        break
-                    
-                    signals = self._analyze_market()
-                    
-                    if signals:
-                        best_signal = self._filter_signals(signals)
-                        if best_signal:
-                            self._execute_trade(best_signal)
-                    
-                    self._check_open_trades()
-                    
-                    time.sleep(5)
-                    
-                except Exception as e:
-                    logger.error(f"Error en loop principal: {e}")
-                    time.sleep(10)
-                    
-        except Exception as e:
-            logger.error(f"Error crítico en bot: {e}")
-        finally:
-            self.running = False
-    
-    def _should_stop_trading(self) -> bool:
-        if self.max_consecutive_losses > 0 and self.session.consecutive_losses >= self.max_consecutive_losses:
-            logger.warning(f"Límite de pérdidas consecutivas alcanzado: {self.session.consecutive_losses}")
-            return True
-        
-        if self.max_consecutive_wins > 0 and self.session.consecutive_wins >= self.max_consecutive_wins:
-            logger.info(f"Límite de ganancias consecutivas alcanzado: {self.session.consecutive_wins}")
-            return True
-        
-        if self.session.total_trades >= self.max_daily_trades:
-            logger.info(f"Límite diario de operaciones alcanzado: {self.session.total_trades}")
-            return True
-        
-        if self.stop_on_profit > 0 and self.session.total_profit >= self.stop_on_profit:
-            logger.info(f"Objetivo de ganancia alcanzado: ${self.session.total_profit:.2f}")
-            return True
-        
-        if self.stop_on_loss > 0 and abs(self.session.total_profit) >= self.stop_on_loss:
-            logger.warning(f"Límite de pérdida alcanzado: ${self.session.total_profit:.2f}")
-            return True
-        
-        return self.risk_manager.should_stop_trading(self.session.consecutive_losses)
-    
-    def _analyze_market(self) -> List[Dict[str, Any]]:
-        signals = []
-        
-        for strategy in self.strategies:
-            try:
-                signal = self._analyze_strategy(strategy)
-                if signal:
-                    signals.append(signal)
-            except Exception as e:
-                logger.error(f"Error analizando estrategia {strategy.value}: {e}")
-        
-        return signals
-    
-    def _analyze_strategy(self, strategy: Strategy) -> Optional[Dict[str, Any]]:
-        config = STRATEGY_CONFIG[strategy]
-        
-        timeframe = config['timeframes'][0]
-        candles = list(self.candles_data.get(timeframe, []))
-        
-        if len(candles) < 50:
+            logger.error(f"Error analizando mercado: {str(e)}")
             return None
-        
-        close_prices = [c.close for c in candles]
-        high_prices = [c.high for c in candles]
-        low_prices = [c.low for c in candles]
-        volumes = [c.volume for c in candles]
-        
+    
+    def _calculate_indicators(self, df: pd.DataFrame) -> dict:
+        """Calcula los indicadores técnicos"""
         indicators = {}
         
-        indicators['rsi'] = TechnicalAnalysis.calculate_rsi(close_prices)
+        # RSI
+        if "rsi" in self.strategy['indicators']:
+            rsi = RSIIndicator(close=df['close'], window=14)
+            indicators['rsi'] = rsi.rsi().iloc[-1]
         
-        indicators['bb_upper'], indicators['bb_middle'], indicators['bb_lower'] = \
-            TechnicalAnalysis.calculate_bollinger_bands(close_prices)
+        # MACD
+        if "macd" in self.strategy['indicators']:
+            macd = MACD(close=df['close'])
+            indicators['macd'] = macd.macd().iloc[-1]
+            indicators['macd_signal'] = macd.macd_signal().iloc[-1]
+            indicators['macd_diff'] = macd.macd_diff().iloc[-1]
         
-        indicators['macd'], indicators['macd_signal'], indicators['macd_hist'] = \
-            TechnicalAnalysis.calculate_macd(close_prices)
+        # Bollinger Bands
+        if "bollinger" in self.strategy['indicators']:
+            bb = BollingerBands(close=df['close'])
+            indicators['bb_upper'] = bb.bollinger_hband().iloc[-1]
+            indicators['bb_lower'] = bb.bollinger_lband().iloc[-1]
+            indicators['bb_middle'] = bb.bollinger_mavg().iloc[-1]
         
-        indicators['stoch_k'], indicators['stoch_d'] = \
-            TechnicalAnalysis.calculate_stochastic(high_prices, low_prices, close_prices)
+        # Stochastic
+        if "stochastic" in self.strategy['indicators']:
+            stoch = StochasticOscillator(high=df['high'], low=df['low'], close=df['close'])
+            indicators['stoch_k'] = stoch.stoch().iloc[-1]
+            indicators['stoch_d'] = stoch.stoch_signal().iloc[-1]
         
-        indicators['ema_fast'] = TechnicalAnalysis.calculate_ema(close_prices, 9)
-        indicators['ema_slow'] = TechnicalAnalysis.calculate_ema(close_prices, 21)
+        # CCI
+        if "cci" in self.strategy['indicators']:
+            cci = CCIIndicator(high=df['high'], low=df['low'], close=df['close'])
+            indicators['cci'] = cci.cci().iloc[-1]
         
-        supports, resistances = TechnicalAnalysis.find_support_resistance(close_prices)
-        indicators['supports'] = supports
-        indicators['resistances'] = resistances
+        # EMA
+        if "ema" in self.strategy['indicators']:
+            ema_20 = EMAIndicator(close=df['close'], window=20)
+            ema_50 = EMAIndicator(close=df['close'], window=50)
+            indicators['ema_20'] = ema_20.ema_indicator().iloc[-1]
+            indicators['ema_50'] = ema_50.ema_indicator().iloc[-1]
         
-        signal = None
+        # ATR (para volatilidad)
+        if "atr" in self.strategy['indicators']:
+            atr = AverageTrueRange(high=df['high'], low=df['low'], close=df['close'])
+            indicators['atr'] = atr.average_true_range().iloc[-1]
         
-        if strategy == Strategy.SUPPORT_RESISTANCE:
-            signal = self._analyze_support_resistance(candles[-1], indicators)
-        elif strategy == Strategy.TREND_FOLLOWING:
-            signal = self._analyze_trend_following(candles[-1], indicators)
-        elif strategy == Strategy.BOLLINGER_BOUNCE:
-            signal = self._analyze_bollinger_bounce(candles[-1], indicators)
-        elif strategy == Strategy.RSI_DIVERGENCE:
-            signal = self._analyze_rsi_divergence(candles, indicators)
-        elif strategy == Strategy.MACD_CROSS:
-            signal = self._analyze_macd_cross(candles[-1], indicators)
-        elif strategy == Strategy.BREAKOUT:
-            signal = self._analyze_breakout(candles, indicators)
-        elif strategy == Strategy.MOMENTUM_SCALPING:
-            signal = self._analyze_momentum(candles, indicators)
+        # Precio actual y tendencia
+        indicators['price'] = df['close'].iloc[-1]
+        indicators['trend'] = "up" if df['close'].iloc[-1] > df['close'].iloc[-5] else "down"
         
-        if signal:
-            signal['strategy'] = strategy
-            signal['timeframe'] = timeframe
-            signal['indicators_data'] = indicators
-            signal['confidence'] = self._calculate_signal_confidence(signal, indicators)
-            
-            if signal['confidence'] >= config['min_confidence']:
-                return signal
-        
-        return None
+        return indicators
     
-    def _analyze_support_resistance(self, candle: MarketData, indicators: Dict) -> Optional[Dict]:
-        current_price = candle.close
-        supports = indicators.get('supports', [])
-        resistances = indicators.get('resistances', [])
+    def _generate_signal(self, indicators: dict, df: pd.DataFrame) -> Optional[dict]:
+        """Genera señal de trading según la estrategia"""
+        signal = {
+            'direction': None,
+            'confidence': 0,
+            'indicators': indicators
+        }
         
-        if not supports or not resistances:
-            return None
+        strategy_id = self.config['strategy']
         
-        for support in supports:
-            if abs(current_price - support) / support < 0.002:
-                if indicators.get('rsi', 50) < 40:
-                    return {
-                        'direction': 'call',
-                        'reason': f'Rebote en soporte {support:.5f}',
-                        'entry_price': current_price
-                    }
+        if strategy_id == "conservative_rsi":
+            signal = self._conservative_rsi_signal(indicators, df)
+        elif strategy_id == "macd_cross":
+            signal = self._macd_cross_signal(indicators, df)
+        elif strategy_id == "bollinger_bounce":
+            signal = self._bollinger_bounce_signal(indicators, df)
+        elif strategy_id == "multi_indicator":
+            signal = self._multi_indicator_signal(indicators, df)
+        elif strategy_id == "momentum_scalper":
+            signal = self._momentum_scalper_signal(indicators, df)
         
-        for resistance in resistances:
-            if abs(current_price - resistance) / resistance < 0.002:
-                if indicators.get('rsi', 50) > 60:
-                    return {
-                        'direction': 'put',
-                        'reason': f'Rebote en resistencia {resistance:.5f}',
-                        'entry_price': current_price
-                    }
-        
-        return None
+        return signal if signal['confidence'] > 0 else None
     
-    def _analyze_trend_following(self, candle: MarketData, indicators: Dict) -> Optional[Dict]:
-        ema_fast = indicators.get('ema_fast')
-        ema_slow = indicators.get('ema_slow')
-        macd_hist = indicators.get('macd_hist')
+    def _conservative_rsi_signal(self, indicators: dict, df: pd.DataFrame) -> dict:
+        """Estrategia conservadora basada en RSI"""
+        signal = {'direction': None, 'confidence': 0, 'indicators': indicators}
         
-        if not all([ema_fast, ema_slow, macd_hist]):
-            return None
-        
-        if ema_fast > ema_slow and macd_hist > 0:
-            if candle.close > ema_fast:
-                return {
-                    'direction': 'call',
-                    'reason': 'Tendencia alcista confirmada',
-                    'entry_price': candle.close
-                }
-        
-        elif ema_fast < ema_slow and macd_hist < 0:
-            if candle.close < ema_fast:
-                return {
-                    'direction': 'put',
-                    'reason': 'Tendencia bajista confirmada',
-                    'entry_price': candle.close
-                }
-        
-        return None
-    
-    def _analyze_bollinger_bounce(self, candle: MarketData, indicators: Dict) -> Optional[Dict]:
-        bb_upper = indicators.get('bb_upper')
-        bb_lower = indicators.get('bb_lower')
         rsi = indicators.get('rsi', 50)
+        ema_20 = indicators.get('ema_20', 0)
+        ema_50 = indicators.get('ema_50', 0)
+        price = indicators['price']
+        
+        # Señal de CALL
+        if rsi < 35 and price > ema_20 and ema_20 > ema_50:
+            signal['direction'] = 'call'
+            signal['confidence'] = 85 - rsi  # Mayor confianza cuanto más sobrevendido
+        
+        # Señal de PUT
+        elif rsi > 65 and price < ema_20 and ema_20 < ema_50:
+            signal['direction'] = 'put'
+            signal['confidence'] = rsi - 15  # Mayor confianza cuanto más sobrecomprado
+        
+        return signal
+    
+    def _macd_cross_signal(self, indicators: dict, df: pd.DataFrame) -> dict:
+        """Estrategia basada en cruces de MACD"""
+        signal = {'direction': None, 'confidence': 0, 'indicators': indicators}
+        
+        macd = indicators.get('macd', 0)
+        macd_signal = indicators.get('macd_signal', 0)
+        macd_diff = indicators.get('macd_diff', 0)
+        
+        # Obtener valores anteriores
+        macd_prev = MACD(close=df['close']).macd().iloc[-2]
+        macd_signal_prev = MACD(close=df['close']).macd_signal().iloc[-2]
+        
+        # Cruce alcista
+        if macd > macd_signal and macd_prev <= macd_signal_prev:
+            signal['direction'] = 'call'
+            signal['confidence'] = min(75 + abs(macd_diff) * 10, 90)
+        
+        # Cruce bajista
+        elif macd < macd_signal and macd_prev >= macd_signal_prev:
+            signal['direction'] = 'put'
+            signal['confidence'] = min(75 + abs(macd_diff) * 10, 90)
+        
+        return signal
+    
+    def _bollinger_bounce_signal(self, indicators: dict, df: pd.DataFrame) -> dict:
+        """Estrategia de rebote en bandas de Bollinger"""
+        signal = {'direction': None, 'confidence': 0, 'indicators': indicators}
+        
+        price = indicators['price']
+        bb_upper = indicators.get('bb_upper', 0)
+        bb_lower = indicators.get('bb_lower', 0)
+        bb_middle = indicators.get('bb_middle', 0)
+        rsi = indicators.get('rsi', 50)
+        
+        # Rebote en banda inferior
+        if price <= bb_lower * 1.001 and rsi < 40:
+            signal['direction'] = 'call'
+            signal['confidence'] = 70 + (40 - rsi) * 0.5
+        
+        # Rebote en banda superior
+        elif price >= bb_upper * 0.999 and rsi > 60:
+            signal['direction'] = 'put'
+            signal['confidence'] = 70 + (rsi - 60) * 0.5
+        
+        return signal
+    
+    def _multi_indicator_signal(self, indicators: dict, df: pd.DataFrame) -> dict:
+        """Estrategia que combina múltiples indicadores"""
+        signal = {'direction': None, 'confidence': 0, 'indicators': indicators}
+        
+        rsi = indicators.get('rsi', 50)
+        macd_diff = indicators.get('macd_diff', 0)
         stoch_k = indicators.get('stoch_k', 50)
+        stoch_d = indicators.get('stoch_d', 50)
         
-        if not all([bb_upper, bb_lower]):
-            return None
+        call_signals = 0
+        put_signals = 0
         
-        if candle.close <= bb_lower and rsi < 30 and stoch_k < 20:
-            return {
-                'direction': 'call',
-                'reason': 'Rebote en Bollinger inferior + RSI/Stoch oversold',
-                'entry_price': candle.close
-            }
+        # RSI
+        if rsi < 30:
+            call_signals += 2
+        elif rsi > 70:
+            put_signals += 2
         
-        elif candle.close >= bb_upper and rsi > 70 and stoch_k > 80:
-            return {
-                'direction': 'put',
-                'reason': 'Rebote en Bollinger superior + RSI/Stoch overbought',
-                'entry_price': candle.close
-            }
-        
-        return None
-    
-    def _analyze_rsi_divergence(self, candles: List[MarketData], indicators: Dict) -> Optional[Dict]:
-        if len(candles) < 20:
-            return None
-        
-        current_rsi = indicators.get('rsi', 50)
-        
-        if current_rsi < 35:
-            return {
-                'direction': 'call',
-                'reason': 'Posible divergencia alcista RSI',
-                'entry_price': candles[-1].close
-            }
-        
-        elif current_rsi > 65:
-            return {
-                'direction': 'put',
-                'reason': 'Posible divergencia bajista RSI',
-                'entry_price': candles[-1].close
-            }
-        
-        return None
-    
-    def _analyze_macd_cross(self, candle: MarketData, indicators: Dict) -> Optional[Dict]:
-        macd = indicators.get('macd')
-        macd_signal = indicators.get('macd_signal')
-        macd_hist = indicators.get('macd_hist')
-        
-        if not all([macd is not None, macd_signal is not None, macd_hist is not None]):
-            return None
-        
-        if macd > macd_signal and macd_hist > 0 and abs(macd_hist) > 0.00001:
-            return {
-                'direction': 'call',
-                'reason': 'Cruce alcista MACD',
-                'entry_price': candle.close
-            }
-        
-        elif macd < macd_signal and macd_hist < 0 and abs(macd_hist) > 0.00001:
-            return {
-                'direction': 'put',
-                'reason': 'Cruce bajista MACD',
-                'entry_price': candle.close
-            }
-        
-        return None
-    
-    def _analyze_breakout(self, candles: List[MarketData], indicators: Dict) -> Optional[Dict]:
-        if len(candles) < 20:
-            return None
-        
-        recent_highs = [c.high for c in candles[-20:]]
-        recent_lows = [c.low for c in candles[-20:]]
-        
-        range_high = max(recent_highs[:-1])
-        range_low = min(recent_lows[:-1])
-        
-        current_candle = candles[-1]
-        
-        if current_candle.close > range_high and current_candle.volume > np.mean([c.volume for c in candles[-20:]]) * 1.5:
-            return {
-                'direction': 'call',
-                'reason': f'Ruptura alcista de {range_high:.5f}',
-                'entry_price': current_candle.close
-            }
-        
-        elif current_candle.close < range_low and current_candle.volume > np.mean([c.volume for c in candles[-20:]]) * 1.5:
-            return {
-                'direction': 'put',
-                'reason': f'Ruptura bajista de {range_low:.5f}',
-                'entry_price': current_candle.close
-            }
-        
-        return None
-    
-    def _analyze_momentum(self, candles: List[MarketData], indicators: Dict) -> Optional[Dict]:
-        if len(candles) < 10:
-            return None
-        
-        momentum = (candles[-1].close - candles[-5].close) / candles[-5].close * 100
-        
-        recent_volume = np.mean([c.volume for c in candles[-5:]])
-        prev_volume = np.mean([c.volume for c in candles[-10:-5]])
-        volume_increase = recent_volume > prev_volume * 1.2
-        
-        if momentum > 0.1 and volume_increase and indicators.get('rsi', 50) > 55:
-            return {
-                'direction': 'call',
-                'reason': 'Momentum alcista fuerte',
-                'entry_price': candles[-1].close
-            }
-        
-        elif momentum < -0.1 and volume_increase and indicators.get('rsi', 50) < 45:
-            return {
-                'direction': 'put',
-                'reason': 'Momentum bajista fuerte',
-                'entry_price': candles[-1].close
-            }
-        
-        return None
-    
-    def _calculate_signal_confidence(self, signal: Dict, indicators: Dict) -> float:
-        confidence = 50.0
-        
-        if signal['direction'] == 'call':
-            if indicators.get('rsi', 50) < 40:
-                confidence += 10
-            if indicators.get('stoch_k', 50) < 30:
-                confidence += 5
-            if indicators.get('macd_hist', 0) > 0:
-                confidence += 10
+        # MACD
+        if macd_diff > 0:
+            call_signals += 1
         else:
-            if indicators.get('rsi', 50) > 60:
-                confidence += 10
-            if indicators.get('stoch_k', 50) > 70:
-                confidence += 5
-            if indicators.get('macd_hist', 0) < 0:
-                confidence += 10
+            put_signals += 1
         
-        if 'bb_upper' in indicators and 'bb_lower' in indicators:
-            bb_width = (indicators['bb_upper'] - indicators['bb_lower']) / indicators.get('bb_middle', 1)
-            if bb_width < 0.01:
-                confidence -= 5
-            elif bb_width > 0.02:
-                confidence += 5
+        # Stochastic
+        if stoch_k < 20 and stoch_k > stoch_d:
+            call_signals += 2
+        elif stoch_k > 80 and stoch_k < stoch_d:
+            put_signals += 2
         
-        return min(max(confidence, 0), 100)
+        # Determinar dirección
+        if call_signals > put_signals and call_signals >= 3:
+            signal['direction'] = 'call'
+            signal['confidence'] = 50 + call_signals * 10
+        elif put_signals > call_signals and put_signals >= 3:
+            signal['direction'] = 'put'
+            signal['confidence'] = 50 + put_signals * 10
+        
+        return signal
     
-    def _filter_signals(self, signals: List[Dict]) -> Optional[Dict]:
-        if not signals:
-            return None
+    def _momentum_scalper_signal(self, indicators: dict, df: pd.DataFrame) -> dict:
+        """Estrategia de scalping basada en momentum"""
+        signal = {'direction': None, 'confidence': 0, 'indicators': indicators}
         
-        if self.last_trade_time:
-            time_since_last = (datetime.datetime.now() - self.last_trade_time).total_seconds()
-            if time_since_last < self.min_time_between_trades:
-                return None
+        cci = indicators.get('cci', 0)
+        atr = indicators.get('atr', 0)
+        price = indicators['price']
+        ema_20 = indicators.get('ema_20', price)
         
-        signals.sort(key=lambda x: x['confidence'], reverse=True)
+        # Calcular momentum
+        momentum = (df['close'].iloc[-1] - df['close'].iloc[-5]) / df['close'].iloc[-5] * 100
         
-        return signals[0]
+        # Alta volatilidad es buena para scalping
+        volatility_factor = min(atr / price * 100, 2)
+        
+        # Señal de CALL con momentum positivo
+        if cci < -100 and momentum > 0.1 and price > ema_20:
+            signal['direction'] = 'call'
+            signal['confidence'] = 60 + volatility_factor * 10 + abs(momentum) * 5
+        
+        # Señal de PUT con momentum negativo
+        elif cci > 100 and momentum < -0.1 and price < ema_20:
+            signal['direction'] = 'put'
+            signal['confidence'] = 60 + volatility_factor * 10 + abs(momentum) * 5
+        
+        return signal
     
-    def _execute_trade(self, signal: Dict):
+    async def _execute_trade(self, signal: dict) -> dict:
+        """Ejecuta una operación"""
         try:
-            position_size = self.risk_manager.calculate_position_size(
-                confidence=signal['confidence'],
-                money_management=self.money_management,
-                consecutive_losses=self.session.consecutive_losses,
-                win_rate=self.session.win_rate / 100
-            )
+            amount = self._calculate_trade_amount()
             
-            if position_size <= 0:
-                logger.warning("Tamaño de posición calculado es 0, omitiendo trade")
-                return
+            # Verificar que el monto no exceda el 50% del balance
+            balance = self.api.get_balance()
+            max_amount = balance * 0.5
             
-            trade = Trade(
-                id=f"{self.email}_{datetime.datetime.now().timestamp()}",
-                symbol=self.symbol,
-                direction=signal['direction'],
-                amount=position_size,
-                entry_price=signal['entry_price'],
-                entry_time=datetime.datetime.now(),
-                expiry_time=5,
-                strategy=signal['strategy'],
-                confidence=signal['confidence'],
-                indicators_data=signal['indicators_data']
-            )
+            if amount > max_amount:
+                amount = max_amount
+                logger.warning(f"Monto ajustado al 50% del balance: ${amount}")
             
-            success = False
-            if IQ_AVAILABLE and self.iq_api:
-                try:
-                    account_type = self.config.get('account_type', 'PRACTICE')
-                    self.iq_api.change_balance(account_type)
-                    
-                    check, trade_id = self.iq_api.buy(
-                        position_size,
-                        self.symbol,
-                        signal['direction'],
-                        5
-                    )
-                    
-                    if check:
-                        trade.id = str(trade_id)
-                        success = True
-                        logger.info(f"✅ Trade ejecutado: {trade.id}")
-                except Exception as e:
-                    logger.error(f"Error ejecutando trade en IQ Option: {e}")
-            else:
-                success = True
-                logger.info(f"📊 Trade simulado: {trade.id}")
+            # Ejecutar operación
+            success, order_id = self.api.buy(amount, self.config['symbol'], signal['direction'], 1)
             
             if success:
-                self.session.trades.append(trade)
-                self.last_trade_time = datetime.datetime.now()
+                # Esperar resultado
+                await asyncio.sleep(70)  # Esperar a que termine la operación de 60 segundos
                 
-                self._send_trade_notification(trade, "ABIERTO")
+                # Verificar resultado
+                result = self.api.check_win_v3(order_id)
                 
-                self._emit_trade_event(trade, "open")
-                
-                Timer(310, self._check_trade_result, args=[trade]).start()
-                
-        except Exception as e:
-            logger.error(f"Error ejecutando trade: {e}")
-    
-    def _check_trade_result(self, trade: Trade):
-        try:
-            if IQ_AVAILABLE and self.iq_api:
-                result = self.iq_api.check_win_v3(trade.id)
-                
-                if result is not None:
-                    if result > 0:
-                        trade.result = "win"
-                        trade.profit = result
-                    elif result < 0:
-                        trade.result = "loss"
-                        trade.profit = result
-                    else:
-                        trade.result = "draw"
-                        trade.profit = 0
-            else:
-                strategy_config = STRATEGY_CONFIG[trade.strategy]
-                win_rate = strategy_config['expected_win_rate'] / 100
-                
-                if np.random.random() < win_rate:
-                    trade.result = "win"
-                    trade.profit = trade.amount * 0.85
-                else:
-                    trade.result = "loss"
-                    trade.profit = -trade.amount
-            
-            self.session.add_trade(trade)
-            
-            self.risk_manager.update_balance(trade.profit)
-            
-            self._send_trade_notification(trade, "CERRADO")
-            
-            self._emit_trade_event(trade, "close")
-            
-        except Exception as e:
-            logger.error(f"Error verificando resultado del trade: {e}")
-    
-    def _check_open_trades(self):
-        pass
-    
-    def _get_current_candle(self) -> Optional[Dict]:
-        if 60 in self.candles_data and self.candles_data[60]:
-            candle = self.candles_data[60][-1]
-            return {
-                'time': candle.timestamp.timestamp() * 1000,
-                'open': candle.open,
-                'high': candle.high,
-                'low': candle.low,
-                'close': candle.close,
-                'volume': candle.volume
-            }
-        return None
-    
-    def _emit_trade_event(self, trade: Trade, event_type: str):
-        try:
-            trade_data = {
-                'id': trade.id,
-                'symbol': trade.symbol,
-                'direction': trade.direction,
-                'amount': trade.amount,
-                'entry_price': trade.entry_price,
-                'entry_time': trade.entry_time.isoformat(),
-                'strategy': trade.strategy.value,
-                'confidence': trade.confidence,
-                'result': trade.result,
-                'profit': trade.profit,
-                'event_type': event_type
-            }
-            
-            socketio.emit('trade_update', trade_data, room=self.email)
-        except Exception as e:
-            logger.error(f"Error emitiendo evento de trade: {e}")
-    
-    def _send_telegram_notification(self, message: str):
-        def send():
-            try:
-                if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-                    return
-                
-                url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-                payload = {
-                    "chat_id": TELEGRAM_CHAT_ID,
-                    "text": message,
-                    "parse_mode": "Markdown",
-                    "disable_web_page_preview": True
+                trade_result = {
+                    'order_id': order_id,
+                    'direction': signal['direction'],
+                    'amount': amount,
+                    'result': result,
+                    'profit': amount * 0.85 if result > 0 else -amount,
+                    'timestamp': datetime.now(),
+                    'confidence': signal['confidence']
                 }
                 
-                response = requests.post(url, json=payload, timeout=10)
-                if response.status_code != 200:
-                    logger.error(f"Error enviando Telegram: {response.text}")
-                    
-            except Exception as e:
-                logger.error(f"Error en notificación Telegram: {e}")
-        
-        executor.submit(send)
+                # Notificar por Telegram
+                self._send_trade_notification(trade_result, signal)
+                
+                # Guardar en base de datos
+                db = get_database()
+                db.save_trade(self.user_id, {
+                    **trade_result,
+                    'strategy': self.config['strategy'],
+                    'symbol': self.config['symbol']
+                })
+                
+                # Registrar en monitor
+                monitor = get_monitor()
+                if monitor:
+                    monitor.record_operation(result > 0, trade_result['profit'])
+                
+                return trade_result
+            else:
+                logger.error("Error ejecutando operación")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error en ejecución de trade: {str(e)}")
+            return None
     
-    def _send_trade_notification(self, trade: Trade, status: str):
-        emoji = "🟢" if status == "ABIERTO" else ("✅" if trade.result == "win" else "❌")
+    def _calculate_trade_amount(self) -> float:
+        """Calcula el monto de la operación según Martingala modificada"""
+        base_amount = self.config['amount']
         
-        message = f"{emoji} *TRADE {status}*\n"
-        message += f"📈 Estrategia: {trade.strategy.value}\n"
-        message += f"🎯 Dirección: {trade.direction.upper()}\n"
-        message += f"💰 Monto: ${trade.amount:.2f}\n"
-        message += f"📍 Precio: {trade.entry_price:.5f}\n"
+        if self.consecutive_losses == 0:
+            return base_amount
         
-        if status == "CERRADO" and trade.profit is not None:
-            profit_sign = '+' if trade.profit >= 0 else ''
-            message += f"💵 Resultado: {profit_sign}${trade.profit:.2f}\n"
-            message += f"📊 Balance: ${self.session.current_balance:.2f}\n"
-            message += f"🎯 Win Rate: {self.session.win_rate:.1f}%"
-        
-        self._send_telegram_notification(message)
+        # Martingala suave según el nivel de riesgo
+        multiplier = self.strategy['max_loss_multiplier']
+        return min(base_amount * (multiplier ** self.consecutive_losses), base_amount * 10)
     
-    def _send_final_report(self):
-        duration = (self.session.end_time - self.session.start_time).total_seconds() / 3600
+    def _update_stats(self, result: dict):
+        """Actualiza las estadísticas del bot"""
+        if not result:
+            return
         
-        message = f"📊 *REPORTE FINAL DE SESIÓN*\n\n"
-        message += f"⏱ Duración: {duration:.1f} horas\n"
-        message += f"📈 Total trades: {self.session.total_trades}\n"
-        message += f"✅ Ganadas: {self.session.winning_trades}\n"
-        message += f"❌ Perdidas: {self.session.losing_trades}\n"
-        message += f"🎯 Win Rate: {self.session.win_rate:.1f}%\n"
-        profit_sign = '+' if self.session.total_profit >= 0 else ''
-        message += f"💰 Profit: {profit_sign}${self.session.total_profit:.2f}\n"
-        message += f"💵 Balance Final: ${self.session.current_balance:.2f}\n"
-        message += f"📉 Max Drawdown: {self.session.max_drawdown:.1f}%\n"
-        message += f"🔥 Rachas: {self.session.max_consecutive_wins}W / {self.session.max_consecutive_losses}L"
+        self.operations_count += 1
+        self.results_history.append(result)
         
-        self._send_telegram_notification(message)
+        if result['result'] > 0:
+            self.consecutive_losses = 0
+            self.session_profit += result['profit']
+        else:
+            self.consecutive_losses += 1
+            self.session_profit += result['profit']
     
-    def get_status(self) -> Dict[str, Any]:
+    def _send_trade_notification(self, result: dict, signal: dict):
+        """Envía notificación de trade a Telegram"""
+        emoji = "✅" if result['result'] > 0 else "❌"
+        direction = "📈 CALL" if result['direction'] == 'call' else "📉 PUT"
+        
+        message = f"""
+{emoji} **Operación Ejecutada**
+{direction} - ${result['amount']:.2f}
+Confianza: {signal['confidence']:.1f}%
+Resultado: {'GANADA' if result['result'] > 0 else 'PERDIDA'}
+Profit: ${result['profit']:.2f}
+Balance Session: ${self.session_profit:.2f}
+Operaciones: {self.operations_count}
+"""
+        send_telegram_notification(message)
+    
+    def get_status(self) -> dict:
+        """Obtiene el estado actual del bot"""
         return {
             'running': self.running,
-            'email': self.email,
-            'symbol': self.symbol,
-            'strategies': [s.value for s in self.strategies],
-            'session': {
-                'start_time': self.session.start_time.isoformat(),
-                'total_trades': self.session.total_trades,
-                'winning_trades': self.session.winning_trades,
-                'losing_trades': self.session.losing_trades,
-                'win_rate': self.session.win_rate,
-                'total_profit': self.session.total_profit,
-                'current_balance': self.session.current_balance,
-                'consecutive_wins': self.session.consecutive_wins,
-                'consecutive_losses': self.session.consecutive_losses,
-                'max_drawdown': self.session.max_drawdown
-            },
-            'risk_manager': {
-                'current_balance': self.risk_manager.current_balance,
-                'daily_loss': self.risk_manager.daily_loss,
-                'max_daily_loss': self.risk_manager.max_daily_loss
-            }
+            'operations_count': self.operations_count,
+            'consecutive_losses': self.consecutive_losses,
+            'session_profit': self.session_profit,
+            'strategy': self.strategy['name'],
+            'last_operations': self.results_history[-10:] if self.results_history else []
         }
 
-# ============================================================================
-# FUNCIONES AUXILIARES
-# ============================================================================
+def send_telegram_notification(message: str):
+    """Envía notificación a Telegram"""
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        data = {
+            "chat_id": TELEGRAM_CHAT_ID,
+            "text": message,
+            "parse_mode": "Markdown"
+        }
+        requests.post(url, data=data)
+    except Exception as e:
+        logger.error(f"Error enviando notificación Telegram: {str(e)}")
 
-def send_telegram_message(message: str):
-    bot = AdvancedBinaryBot(None, {}, "system")
-    bot._send_telegram_notification(message)
+def is_otc_time() -> bool:
+    """Verifica si es fin de semana (mercado OTC)"""
+    now = datetime.now()
+    # Sábado = 5, Domingo = 6
+    return now.weekday() >= 5
 
-def require_auth(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_email' not in session:
-            return jsonify({"error": "No autorizado", "code": "AUTH_REQUIRED"}), 401
+@app.route('/api/login', methods=['POST'])
+@rate_limit(max_requests=5, window_seconds=300)  # 5 intentos cada 5 minutos
+@validate_request_data(['email', 'password'])
+def login():
+    """Endpoint de login con IQ Option"""
+    try:
+        data = request.get_json()
+        email = data.get('email')
+        password = data.get('password')
         
-        email = session['user_email']
-        with sessions_lock:
-            if email not in user_sessions:
-                session.clear()
-                return jsonify({"error": "Sesión expirada", "code": "SESSION_EXPIRED"}), 401
+        if not email or not password:
+            return jsonify({'success': False, 'message': 'Email y contraseña requeridos'}), 400
         
-        return f(*args, **kwargs)
-    return decorated_function
-
-# ============================================================================
-# WEBSOCKET EVENTS (SOCKETIO)
-# ============================================================================
-
-@socketio.on('connect')
-def handle_connect():
-    if 'user_email' in session:
-        email = session['user_email']
-        join_room(email)
-        logger.info(f"WebSocket conectado para {email}")
-        emit('connected', {'status': 'connected'})
-
-@socketio.on('disconnect')
-def handle_disconnect():
-    if 'user_email' in session:
-        email = session['user_email']
-        leave_room(email)
-        logger.info(f"WebSocket desconectado para {email}")
-
-@socketio.on('subscribe_candles')
-def handle_subscribe_candles(data):
-    if 'user_email' in session:
-        email = session['user_email']
-        symbol = data.get('symbol', 'EURUSD')
+        # Conectar con IQ Option
+        api = IQ_Option(email, password)
+        check, reason = api.connect()
         
-        with data_lock:
-            if email not in market_data_streams:
-                market_data_streams[email] = set()
-            market_data_streams[email].add(symbol)
+        if not check:
+            return jsonify({'success': False, 'message': f'Error de conexión: {reason}'}), 401
         
-        emit('subscription_confirmed', {'symbol': symbol})
-
-@socketio.on('unsubscribe_candles')
-def handle_unsubscribe_candles(data):
-    if 'user_email' in session:
-        email = session['user_email']
-        symbol = data.get('symbol', 'EURUSD')
+        # Obtener información del usuario
+        profile = api.get_profile()
+        balance = api.get_balance()
         
-        with data_lock:
-            if email in market_data_streams:
-                market_data_streams[email].discard(symbol)
+        # Guardar en sesión
+        session['user_id'] = str(profile['user_id'])
+        session['email'] = email
+        session['password'] = password  # En producción, usar token en lugar de password
+        session['api_connected'] = True
+        session['iq_session'] = api.api.ssid
+        
+        # Guardar en gestor de sesiones
+        session_mgr = get_session_manager()
+        session_mgr.save_session(str(profile['user_id']), api, email)
+        
+        # Notificar login exitoso
+        send_telegram_notification(f"🔐 Login exitoso: {email}\n💰 Balance: ${balance:.2f}")
+        
+        return jsonify({
+            'success': True,
+            'user': {
+                'id': profile['user_id'],
+                'name': profile.get('name', email.split('@')[0]),
+                'email': email,
+                'balance': balance
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error en login: {str(e)}")
+        return jsonify({'success': False, 'message': 'Error al conectar con IQ Option'}), 500
 
-# ============================================================================
-# ENDPOINTS API REST
-# ============================================================================
+@app.route('/api/logout', methods=['POST'])
+def logout():
+    """Endpoint de logout"""
+    try:
+        user_id = session.get('user_id')
+        
+        # Detener bot si está activo
+        if user_id in active_bots:
+            active_bots[user_id].stop()
+            del active_bots[user_id]
+        
+        # Limpiar sesión
+        session.clear()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        logger.error(f"Error en logout: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.after_request
-def after_request(response):
-    origin = request.headers.get('Origin')
+@app.route('/api/strategies', methods=['GET'])
+def get_strategies():
+    """Obtiene las estrategias disponibles"""
+    strategies_list = []
     
-    if origin in FRONTEND_DOMAINS:
-        response.headers['Access-Control-Allow-Origin'] = origin
-    elif origin and origin.startswith('http://localhost'):
-        response.headers['Access-Control-Allow-Origin'] = origin
-    else:
-        response.headers['Access-Control-Allow-Origin'] = 'https://iqoptionbot.ct.ws'
+    for strategy_id, strategy in STRATEGIES.items():
+        strategies_list.append({
+            'id': strategy_id,
+            'name': strategy['name'],
+            'risk_level': strategy['risk_level'],
+            'description': strategy['description'],
+            'min_confidence': strategy['min_confidence'],
+            'timeframe': strategy['timeframe']
+        })
     
-    response.headers['Access-Control-Allow-Credentials'] = 'true'
-    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept, Origin'
-    response.headers['Access-Control-Max-Age'] = '3600'
+    return jsonify({'strategies': strategies_list})
+
+@app.route('/api/symbols', methods=['GET'])
+@require_auth
+def get_symbols():
+    """Obtiene los símbolos disponibles para trading"""
+    try:
+        # Reconectar si es necesario
+        api = get_user_api()
+        if not api:
+            return jsonify({'error': 'No autenticado'}), 401
+        
+        # Obtener activos
+        all_assets = api.get_all_open_time()
+        
+        symbols = []
+        is_otc = is_otc_time()
+        
+        # Filtrar activos según el horario
+        for asset, data in all_assets['binary'].items():
+            if data['open']:
+                # En fin de semana, solo mostrar OTC
+                if is_otc and '-OTC' in asset:
+                    symbols.append({
+                        'symbol': asset,
+                        'name': asset.replace('-OTC', ' OTC'),
+                        'type': 'OTC'
+                    })
+                # Entre semana, mostrar no-OTC
+                elif not is_otc and '-OTC' not in asset:
+                    symbols.append({
+                        'symbol': asset,
+                        'name': asset.replace('/', ' '),
+                        'type': 'Forex' if '/' in asset else 'Stock'
+                    })
+        
+        # Ordenar por nombre
+        symbols.sort(key=lambda x: x['name'])
+        
+        return jsonify({'symbols': symbols})
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo símbolos: {str(e)}")
+        return jsonify({'error': 'Error obteniendo símbolos'}), 500
+
+@app.route('/api/balance', methods=['GET'])
+@require_auth
+def get_balance():
+    """Obtiene el balance actual"""
+    try:
+        api = get_user_api()
+        if not api:
+            return jsonify({'error': 'No autenticado'}), 401
+        
+        balance = api.get_balance()
+        
+        # Calcular métricas
+        user_id = session.get('user_id')
+        metrics = calculate_user_metrics(user_id)
+        
+        return jsonify({
+            'balance': balance,
+            'metrics': metrics
+        })
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo balance: {str(e)}")
+        return jsonify({'error': 'Error obteniendo balance'}), 500
+
+@app.route('/api/optimal_amount', methods=['POST'])
+def calculate_optimal_amount():
+    """Calcula el monto óptimo según la estrategia"""
+    try:
+        data = request.get_json()
+        strategy_id = data.get('strategy')
+        base_amount = data.get('base_amount', 1)
+        
+        api = get_user_api()
+        if not api:
+            return jsonify({'error': 'No autenticado'}), 401
+        
+        balance = api.get_balance()
+        strategy = STRATEGIES.get(strategy_id)
+        
+        if not strategy:
+            return jsonify({'error': 'Estrategia no válida'}), 400
+        
+        # Calcular según el nivel de riesgo
+        risk_factors = {
+            'very_low': 0.01,
+            'low': 0.02,
+            'medium': 0.03,
+            'high': 0.05,
+            'very_high': 0.08
+        }
+        
+        risk_factor = risk_factors.get(strategy['risk_level'], 0.02)
+        optimal = balance * risk_factor
+        
+        # No exceder el 50% del balance
+        max_allowed = balance * 0.5
+        optimal = min(optimal, max_allowed)
+        
+        # Redondear a múltiplos de base_amount
+        optimal = max(base_amount, round(optimal / base_amount) * base_amount)
+        
+        return jsonify({
+            'optimal_amount': optimal,
+            'risk_level': strategy['risk_level'],
+            'balance': balance
+        })
+        
+    except Exception as e:
+        logger.error(f"Error calculando monto óptimo: {str(e)}")
+        return jsonify({'error': 'Error en cálculo'}), 500
+
+@app.route('/api/start_bot', methods=['POST'])
+@require_auth
+@rate_limit(max_requests=10, window_seconds=60)
+def start_bot():
+    """Inicia el bot de trading"""
+    try:
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({'error': 'No autenticado'}), 401
+        
+        # Verificar si ya hay un bot activo
+        if user_id in active_bots and active_bots[user_id].running:
+            return jsonify({'error': 'Ya hay un bot activo'}), 400
+        
+        data = request.get_json()
+        
+        # Validar parámetros de trading
+        is_valid, error_msg = validate_trading_params(data)
+        if not is_valid:
+            return jsonify({'error': error_msg}), 400
+        
+        # Validar configuración
+        config = {
+            'symbol': data.get('symbol'),
+            'amount': float(data.get('amount', 1)),
+            'strategy': data.get('strategy'),
+            'account_type': data.get('account_type', 'PRACTICE'),
+            'max_operations': int(data.get('max_operations', 0)),
+            'max_loss_operations': int(data.get('max_loss_operations', 5))
+        }
+        
+        # Obtener API
+        api = get_user_api()
+        if not api:
+            return jsonify({'error': 'No autenticado'}), 401
+        
+        # Cambiar tipo de cuenta si es necesario
+        if config['account_type'] == 'REAL':
+            api.change_balance('REAL')
+        else:
+            api.change_balance('PRACTICE')
+        
+        # Crear y ejecutar bot
+        bot = TradingBot(user_id, api, config)
+        active_bots[user_id] = bot
+        
+        # Ejecutar bot en background usando el async handler
+        async_handler = get_async_handler()
+        async_handler.create_task(bot.start())
+        
+        # Notificar inicio
+        strategy_info = STRATEGIES[config['strategy']]
+        send_telegram_notification(
+            f"🤖 Bot iniciado\n"
+            f"📊 Estrategia: {strategy_info['name']}\n"
+            f"💵 Monto: ${config['amount']}\n"
+            f"🎯 Símbolo: {config['symbol']}\n"
+            f"💼 Cuenta: {config['account_type']}"
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': 'Bot iniciado correctamente',
+            'strategy_info': strategy_info
+        })
+        
+    except Exception as e:
+        logger.error(f"Error iniciando bot: {str(e)}")
+        return jsonify({'error': 'Error al iniciar bot'}), 500
+
+@app.route('/api/stop_bot', methods=['POST'])
+def stop_bot():
+    """Detiene el bot de trading"""
+    try:
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({'error': 'No autenticado'}), 401
+        
+        if user_id not in active_bots:
+            return jsonify({'error': 'No hay bot activo'}), 400
+        
+        bot = active_bots[user_id]
+        status = bot.get_status()
+        bot.stop()
+        
+        # Esperar a que se detenga
+        import time
+        time.sleep(1)
+        
+        # Eliminar de bots activos
+        del active_bots[user_id]
+        
+        # Notificar
+        send_telegram_notification(
+            f"🛑 Bot detenido\n"
+            f"📊 Operaciones: {status['operations_count']}\n"
+            f"💰 Profit sesión: ${status['session_profit']:.2f}"
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': 'Bot detenido',
+            'final_stats': status
+        })
+        
+    except Exception as e:
+        logger.error(f"Error deteniendo bot: {str(e)}")
+        return jsonify({'error': 'Error al detener bot'}), 500
+
+@app.route('/api/bot_status', methods=['GET'])
+def get_bot_status():
+    """Obtiene el estado actual del bot"""
+    try:
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({'error': 'No autenticado'}), 401
+        
+        if user_id not in active_bots:
+            return jsonify({
+                'running': False,
+                'message': 'No hay bot activo'
+            })
+        
+        bot = active_bots[user_id]
+        status = bot.get_status()
+        
+        return jsonify(status)
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo estado del bot: {str(e)}")
+        return jsonify({'error': 'Error obteniendo estado'}), 500
+
+@app.route('/api/live_data', methods=['GET'])
+def get_live_data():
+    """Obtiene datos en tiempo real del mercado"""
+    try:
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({'error': 'No autenticado'}), 401
+        
+        api = get_user_api()
+        if not api:
+            return jsonify({'error': 'No autenticado'}), 401
+        
+        # Obtener símbolo actual del bot o usar default
+        symbol = 'EURUSD'
+        if user_id in active_bots:
+            symbol = active_bots[user_id].config['symbol']
+        
+        # Obtener velas
+        import time
+        candles = api.get_candles(symbol, 60, 30, time.time())
+        
+        # Convertir para frontend
+        candles_data = []
+        for candle in candles:
+            candles_data.append({
+                'time': candle['from'],
+                'open': candle['open'],
+                'high': candle['max'],
+                'low': candle['min'],
+                'close': candle['close']
+            })
+        
+        # Calcular indicadores si hay bot activo
+        indicators = {}
+        signal = {}
+        bot_status = None
+        
+        if user_id in active_bots:
+            bot = active_bots[user_id]
+            bot_status = bot.get_status()
+            
+            # Calcular indicadores
+            if candles:
+                df = pd.DataFrame(candles)
+                df['time'] = pd.to_datetime(df['from'], unit='s')
+                df.set_index('time', inplace=True)
+                
+                indicators = bot._calculate_indicators(df)
+                
+                # Añadir volatilidad
+                returns = df['close'].pct_change()
+                indicators['volatility'] = returns.std() * 100
+        
+        return jsonify({
+            'candles': candles_data,
+            'indicators': indicators,
+            'signal': signal,
+            'bot_status': bot_status
+        })
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo datos en vivo: {str(e)}")
+        return jsonify({'error': 'Error obteniendo datos'}), 500
+
+def get_user_api():
+    """Obtiene la conexión API del usuario actual"""
+    try:
+        user_id = session.get('user_id')
+        email = session.get('email')
+        password = session.get('password')
+        
+        if not user_id or not email:
+            return None
+        
+        # Obtener del gestor de sesiones
+        session_mgr = get_session_manager()
+        api = session_mgr.get_api(user_id, email, password)
+        
+        return api
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo API: {str(e)}")
+        return None Implementar sistema de sesiones persistentes
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo API: {str(e)}")
+        return None
+
+def calculate_user_metrics(user_id: str) -> dict:
+    """Calcula métricas del usuario"""
+    db = get_database()
+    stats = db.get_user_stats(user_id)
     
-    return response
+    return {
+        'total_trades': stats['total_trades'],
+        'win_rate': stats['win_rate'],
+        'total_profit': stats['total_profit'],
+        'strategy_performance': stats['strategy_performance']
+    }
+
+# Health check endpoint
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Endpoint de health check para Render"""
+    return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()})
+
+# Error handlers
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({'error': 'Endpoint no encontrado'}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({'error': 'Error interno del servidor'}), 500
+
+if __name__ == '__main__':
+    # Configurar para producción
+    port = int(os.environ.get('PORT', 5000))
+    debug = os.environ.get('FLASK_ENV') == 'development'
+    
+    # Iniciar servidor
+    app.run(host='0.0.0.0', port=port, debug=debug)
