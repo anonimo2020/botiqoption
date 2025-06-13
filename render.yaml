@@ -1,23 +1,26 @@
 services:
+  # Web service
   - type: web
-    name: botiqoption-4
-    env: python
-    region: oregon
-    plan: free
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:$PORT main:application"
-    healthCheckPath: /health
+    name: iqoption-bot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --workers 4 --threads 2 --worker-class gthread
     envVars:
       - key: PYTHON_VERSION
-        value: 3.9.18
+        value: 3.11.0
+      - key: SECRET_KEY
+        generateValue: true
       - key: FLASK_ENV
         value: production
-      - key: FLASK_SECRET_KEY
-        generateValue: true
-      - key: TELEGRAM_BOT_TOKEN
-        value: "7787754995:AAEvM36bO9B4SvGA1cr1VP1j-Rx6on5LrjM"
-      - key: TELEGRAM_CHAT_ID
-        value: "7009100334"
-      - key: RENDER
-        value: "true"
-    autoDeploy: true
+      - key: REDIS_URL
+        fromService:
+          name: iqoption-redis
+          type: redis
+          property: connectionString
+    healthCheckPath: /health
+    
+  # Redis service for sessions
+  - type: redis
+    name: iqoption-redis
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
