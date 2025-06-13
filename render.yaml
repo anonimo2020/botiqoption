@@ -4,7 +4,7 @@ services:
     name: iqoption-bot
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --workers 4 --threads 2 --worker-class gthread
+    startCommand: gunicorn main:app --workers 4 --threads 2 --worker-class gthread
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
