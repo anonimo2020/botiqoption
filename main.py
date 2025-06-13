@@ -27,6 +27,11 @@ from session_manager import init_session_manager, get_session_manager
 from async_handler import get_async_handler
 from database import init_database, get_database
 from monitoring import init_monitoring, get_monitor
+import os
+
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
 from security import (
     require_auth, rate_limit, validate_request_data, 
     add_security_headers, validate_trading_params
