@@ -583,12 +583,29 @@ def login():
         if not email or not password:
             return jsonify({'success': False, 'message': 'Email y contraseña requeridos'}), 400
         
+        
         # Conectar con IQ Option
         api = IQ_Option(email, password)
         check, reason = api.connect()
-        
+
         if not check:
-            return jsonify({'success': False, 'message': f'Error de conexión: {reason}'}), 401
+            try:
+                parsed = json.loads(reason)
+                code = parsed.get("code", "")
+                message = parsed.get("message", "")
+            except Exception:
+                code = str(reason)
+                message = str(reason)
+
+            if code == "invalid_credentials":
+                return jsonify({"success": False, "message": "Credenciales incorrectas"}), 401
+            elif code == "2FA":
+                return jsonify({"success": False, "message": "2FA requerido"}), 401
+            elif code == "device_not_trusted":
+                return jsonify({"success": False, "message": "Dispositivo no confiable"}), 401
+            else:
+                return jsonify({"success": False, "message": f"Error IQ Option: {message}"}), 503
+
         
         # Obtener información del usuario
         profile = api.get_profile()
