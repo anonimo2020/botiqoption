@@ -154,4 +154,77 @@ def test_live_data(session):
     print("-" * 50)
 
 def test_stop_bot(session):
-    """Pru
+    """Prueba detener el bot"""
+    print("Testing bot stop...")
+    response = session.post(f"{BASE_URL}/api/stop_bot")
+    print(f"Status: {response.status_code}")
+    
+    if response.status_code == 200:
+        result = response.json()
+        print(f"Bot stopped successfully!")
+        if 'final_stats' in result:
+            stats = result['final_stats']
+            print(f"Final operations: {stats['operations_count']}")
+            print(f"Final profit: ${stats['session_profit']}")
+    print("-" * 50)
+
+def test_logout(session):
+    """Prueba logout"""
+    print("Testing logout...")
+    response = session.post(f"{BASE_URL}/api/logout")
+    print(f"Status: {response.status_code}")
+    
+    if response.status_code == 200:
+        print("Logout successful!")
+    print("-" * 50)
+
+def run_all_tests(email: str, password: str):
+    """Ejecuta todas las pruebas"""
+    print("=" * 50)
+    print("IQ Option Bot API Test Suite")
+    print("=" * 50)
+    
+    # Test básicos sin autenticación
+    test_health()
+    test_strategies()
+    
+    # Login
+    session = test_login(email, password)
+    if not session:
+        print("Cannot continue tests without successful login")
+        return
+    
+    # Tests autenticados
+    test_symbols(session)
+    test_balance(session)
+    test_optimal_amount(session)
+    
+    # Test del bot
+    if test_start_bot(session):
+        print("Waiting 30 seconds for bot to operate...")
+        time.sleep(30)
+        
+        test_bot_status(session)
+        test_live_data(session)
+        test_stop_bot(session)
+    
+    # Logout
+    test_logout(session)
+    
+    print("=" * 50)
+    print("All tests completed!")
+    print("=" * 50)
+
+if __name__ == "__main__":
+    # IMPORTANTE: Reemplaza con tus credenciales de prueba
+    EMAIL = "tu_email@example.com"
+    PASSWORD = "tu_password"
+    
+    # Para pruebas individuales, descomenta las líneas que necesites:
+    # test_health()
+    # test_strategies()
+    
+    # O ejecuta todas las pruebas:
+    # run_all_tests(EMAIL, PASSWORD)
+    
+    print("Configure your test credentials in the script before running!")
