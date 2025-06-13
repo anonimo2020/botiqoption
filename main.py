@@ -976,7 +976,8 @@ def get_user_api():
         
     except Exception as e:
         logger.error(f"Error obteniendo API: {str(e)}")
-        return None Implementar sistema de sesiones persistentes
+        return None 
+        #Implementar sistema de sesiones persistentes
         
     except Exception as e:
         logger.error(f"Error obteniendo API: {str(e)}")
