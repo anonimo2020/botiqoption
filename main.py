@@ -607,15 +607,16 @@ def login():
 
         
         # Obtener información del usuario
-        profile = api.get_profile()
+        profile = api.profile  # ✅ CORRECTO
         balance = api.get_balance()
         
         # Guardar en sesión
-        session['user_id'] = str(profile['user_id'])
+        session['user_id'] = str(profile['user_id'])  # ✅ si profile es un dict
         session['email'] = email
         session['password'] = password  # En producción, usar token en lugar de password
         session['api_connected'] = True
         session['iq_session'] = api.api.ssid
+
         
         # Guardar en gestor de sesiones
         session_mgr = get_session_manager()
