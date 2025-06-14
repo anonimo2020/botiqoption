@@ -646,6 +646,8 @@ def login():
         
         # Conectar con manejo mejorado de errores
         check, reason = api.connect()
+        print("✅ ¿Conexión exitosa?:", check)
+        print("🔍 Razón cruda de IQ Option:", reason)
         
         logger.info(f"Resultado conexión - Check: {check}, Reason: {reason}")
         
