@@ -608,7 +608,7 @@ def login():
         
         # Obtener información del usuario
       
-        api.get_profile_ansyc()  # ✅ IMPORTANTE: carga el perfil internamente
+        api.get_profile_async()  # ✅ IMPORTANTE: carga el perfil internamente
         profile = api.profile
         
         if not profile or "user_id" not in profile:
