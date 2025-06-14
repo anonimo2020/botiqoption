@@ -75,12 +75,59 @@ init_database(redis_url)
 init_monitoring(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
 
 # Configurar CORS
-CORS(app, supports_credentials=True, origins=['https://iqoptionbot.ct.ws'])
+CORS(app, 
+     supports_credentials=True, 
+     origins=['https://iqoptionbot.ct.ws', 'http://localhost:3000'],  # Añade localhost para desarrollo
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+     allow_headers=['Content-Type', 'Authorization', 'X-Requested-With'],
+     expose_headers=['Content-Type', 'X-CSRFToken'])
+# Mejorar la configuración de sesiones para cookies cross-origin
+app.config.update(
+    SECRET_KEY=os.environ.get('SECRET_KEY', 'your-secret-key-here'),
+    SESSION_TYPE='redis',
+    SESSION_REDIS=redis.from_url(os.environ.get('REDIS_URL', 'redis://localhost:6379')),
+    SESSION_PERMANENT=True,
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=24),
+    SESSION_COOKIE_SECURE=True,  # Solo HTTPS en producción
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='None',  # Necesario para cross-origin
+    SESSION_COOKIE_NAME='iqbot_session',
+    SESSION_COOKIE_PATH='/',
+    # En desarrollo, podrías necesitar:
+    # SESSION_COOKIE_SECURE=False if os.environ.get('FLASK_ENV') == 'development' else True
+)
+# Añadir este middleware para manejar preflight requests
+@app.before_request
+def handle_preflight():
+    if request.method == "OPTIONS":
+        response = make_response()
+        response.headers.add("Access-Control-Allow-Origin", request.headers.get('Origin', '*'))
+        response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization,X-Requested-With")
+        response.headers.add('Access-Control-Allow-Methods', "GET,POST,PUT,DELETE,OPTIONS")
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response
 
 # Configurar headers de seguridad
 @app.after_request
 def after_request(response):
-    return add_security_headers(response)
+    origin = request.headers.get('Origin')
+    if origin in ['https://iqoptionbot.ct.ws', 'http://localhost:3000']:
+        response.headers.add('Access-Control-Allow-Origin', origin)
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+    
+    # Headers de seguridad (ajustados para permitir cross-origin)
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    
+    # Solo en producción
+    if os.environ.get('FLASK_ENV') == 'production':
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    
+    # CSP más permisivo para permitir conexiones
+    response.headers['Content-Security-Policy'] = "default-src 'self' https://iqoptionbot.ct.ws; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"
+    
+    return response
 
 # Telegram configuration
 TELEGRAM_BOT_TOKEN = "8147187392:AAFMyIC0EL0-9u63MzEfDqvqytujQFoVSLE"
@@ -570,8 +617,10 @@ def is_otc_time() -> bool:
     # Sábado = 5, Domingo = 6
     return now.weekday() >= 5
 
+# Reemplaza la función login() en main.py con esta versión corregida:
+
 @app.route('/api/login', methods=['POST'])
-@rate_limit(max_requests=5, window_seconds=300)  # 5 intentos cada 5 minutos
+@rate_limit(max_requests=5, window_seconds=300)
 @validate_request_data(['email', 'password'])
 def login():
     """Endpoint de login con IQ Option"""
@@ -582,65 +631,193 @@ def login():
         
         if not email or not password:
             return jsonify({'success': False, 'message': 'Email y contraseña requeridos'}), 400
-        # Conectar con IQ Option
-        api = IQ_Option(email, password)
+        
+        logger.info(f"Intentando login para: {email}")
+        
+        # Crear instancia de IQ Option con el wrapper seguro
+        try:
+            from iqapi_websocket_fix import SafeIQOption
+            api = SafeIQOption(email, password)
+        except Exception as e:
+            logger.error(f"Error creando instancia IQ Option: {str(e)}")
+            # Fallback a la API normal si el wrapper falla
+            api = IQ_Option(email, password)
+        
+        # Conectar con manejo mejorado de errores
         check, reason = api.connect()
-        print("🔍 Razón cruda de IQ Option:", reason)
-
+        
+        logger.info(f"Resultado conexión - Check: {check}, Reason: {reason}")
+        
         if not check:
-            try:
-                parsed = json.loads(reason)
-                code = parsed.get("code", "")
-                message = parsed.get("message", "")
-            except Exception:
-                code = str(reason)
-                message = str(reason)
-
-            if code == "invalid_credentials":
-                return jsonify({"success": False, "message": "Credenciales incorrectas"}), 401
-            elif code == "2FA":
-                return jsonify({"success": False, "message": "2FA requerido"}), 401
-            elif code == "device_not_trusted":
-                return jsonify({"success": False, "message": "Dispositivo no confiable"}), 401
+            # Manejar diferentes tipos de error
+            error_message = "Error de conexión"
+            
+            if reason:
+                reason_str = str(reason).lower()
+                
+                # Manejar errores como string JSON
+                try:
+                    if isinstance(reason, str) and reason.startswith('{'):
+                        error_data = json.loads(reason)
+                        code = error_data.get("code", "")
+                        message = error_data.get("message", str(reason))
+                    else:
+                        code = ""
+                        message = str(reason)
+                except:
+                    code = ""
+                    message = str(reason)
+                
+                # Mapear errores conocidos
+                if "invalid_credentials" in reason_str or "unauthorized" in reason_str:
+                    error_message = "Credenciales incorrectas. Verifica tu email y contraseña."
+                elif "2fa" in reason_str or "two factor" in reason_str:
+                    error_message = "Autenticación de dos factores requerida. Por favor, desactívala temporalmente en tu cuenta IQ Option."
+                elif "device_not_trusted" in reason_str:
+                    error_message = "Dispositivo no confiable. Verifica tu email para autorizar este dispositivo."
+                elif "blocked" in reason_str or "banned" in reason_str:
+                    error_message = "Tu cuenta está bloqueada. Contacta con soporte de IQ Option."
+                elif "maintenance" in reason_str:
+                    error_message = "IQ Option está en mantenimiento. Intenta más tarde."
+                elif "connection" in reason_str or "network" in reason_str:
+                    error_message = "Error de conexión. Verifica tu conexión a internet."
+                else:
+                    error_message = f"Error de IQ Option: {message}"
+            
+            logger.error(f"Login fallido: {error_message}")
+            return jsonify({
+                "success": False, 
+                "message": error_message,
+                "error_code": code if 'code' in locals() else "unknown"
+            }), 401
+        
+        # Login exitoso - obtener información del usuario
+        try:
+            # Esperar un momento para que la API se estabilice
+            import time
+            time.sleep(1)
+            
+            # Obtener perfil con reintentos
+            profile = None
+            for i in range(3):
+                try:
+                    profile_msg = api.get_profile_ansyc()
+                    if profile_msg:
+                        profile = profile_msg
+                        break
+                except Exception as e:
+                    logger.warning(f"Intento {i+1} de obtener perfil falló: {str(e)}")
+                    time.sleep(1)
+            
+            if not profile:
+                logger.error("No se pudo obtener el perfil del usuario")
+                return jsonify({
+                    "success": False, 
+                    "message": "Error obteniendo perfil. Intenta nuevamente."
+                }), 500
+            
+            # Extraer user_id correctamente
+            user_id = None
+            if isinstance(profile, dict):
+                # Si es un diccionario directo
+                user_id = profile.get('user_id') or profile.get('id') or profile.get('userId')
             else:
-                return jsonify({"success": False, "message": f"Error IQ Option: {message}"}), 503
-
-        
-        # Obtener información del usuario
-        profile = api.get_profile()
-        if not profile or "user_id" not in profile:
-            return jsonify({"success": False, "message": "No se pudo obtener el perfil del usuario"}), 500
-
-        balance = api.get_balance()
-        
-        # Guardar en sesión
-        session['user_id'] = str(profile['user_id'])  # ✅ si profile es un dict
-        session['email'] = email
-        session['password'] = password  # En producción, usar token en lugar de password
-        session['api_connected'] = True
-        session['iq_session'] = api.api.ssid
-
-        
-        # Guardar en gestor de sesiones
-        session_mgr = get_session_manager()
-        session_mgr.save_session(str(profile['user_id']), api, email)
-        
-        # Notificar login exitoso
-        send_telegram_notification(f"🔐 Login exitoso: {email}\n💰 Balance: ${balance:.2f}")
+                # Si es un objeto con atributos
+                for attr in ['user_id', 'id', 'userId']:
+                    if hasattr(profile, attr):
+                        user_id = getattr(profile, attr)
+                        break
+            
+            if not user_id:
+                logger.error(f"No se pudo extraer user_id del perfil: {type(profile)}")
+                logger.debug(f"Perfil completo: {profile}")
+                # Generar un ID temporal basado en el email
+                import hashlib
+                user_id = hashlib.md5(email.encode()).hexdigest()[:10]
+            
+            # Obtener balance con reintentos
+            balance = 0
+            for i in range(3):
+                try:
+                    balance = api.get_balance()
+                    if balance is not None:
+                        break
+                except Exception as e:
+                    logger.warning(f"Intento {i+1} de obtener balance falló: {str(e)}")
+                    time.sleep(1)
+            
+            # Guardar en sesión
+            session['user_id'] = str(user_id)
+            session['email'] = email
+            session['password'] = password  # En producción, usar token
+            session['api_connected'] = True
+            session.permanent = True
+            
+            # Guardar SSID si está disponible
+            try:
+                if hasattr(api, 'api') and hasattr(api.api, 'ssid'):
+                    session['iq_session'] = api.api.ssid
+            except:
+                pass
+            
+            # Guardar en gestor de sesiones
+            try:
+                session_mgr = get_session_manager()
+                if session_mgr:
+                    session_mgr.save_session(str(user_id), api, email)
+            except Exception as e:
+                logger.warning(f"No se pudo guardar en session manager: {str(e)}")
+            
+            # Notificar login exitoso
+            try:
+                send_telegram_notification(f"🔐 Login exitoso: {email}\n💰 Balance: ${balance:.2f}")
+            except:
+                pass
+            
+            # Preparar respuesta
+            response_data = {
+                'success': True,
+                'user': {
+                    'id': str(user_id),
+                    'name': email.split('@')[0],
+                    'email': email,
+                    'balance': float(balance) if balance else 0
+                }
+            }
+            
+            logger.info(f"Login exitoso para {email}, user_id: {user_id}")
+            
+            return jsonify(response_data), 200
+            
+        except Exception as e:
+            logger.error(f"Error procesando datos del usuario: {str(e)}")
+            logger.error(traceback.format_exc())
+            
+            # Si llegamos aquí, el login fue exitoso pero hubo problemas con los datos
+            # Devolver respuesta mínima exitosa
+            return jsonify({
+                'success': True,
+                'user': {
+                    'id': email.split('@')[0],
+                    'name': email.split('@')[0],
+                    'email': email,
+                    'balance': 0
+                },
+                'warning': 'Login exitoso pero algunos datos no pudieron ser obtenidos'
+            }), 200
+            
+    except Exception as e:
+        logger.error(f"Error general en login: {str(e)}")
+        logger.error(traceback.format_exc())
         
         return jsonify({
-            'success': True,
-            'user': {
-                'id': profile['user_id'],
-                'name': profile.get('name', email.split('@')[0]),
-                'email': email,
-                'balance': balance
-            }
-        })
-        
-    except Exception as e:
-        logger.error(f"Error en login: {str(e)}")
-        return jsonify({'success': False, 'message': 'Error al conectar con IQ Option'}), 500
+            'success': False, 
+            'message': 'Error interno del servidor. Por favor, intenta nuevamente.'
+        }), 500
+
+# También actualiza la función get_user_api() para mejor manejo de reconexión:
+
+
 
 @app.route('/api/logout', methods=['POST'])
 def logout():
@@ -990,26 +1167,48 @@ def get_live_data():
         return jsonify({'error': 'Error obteniendo datos'}), 500
 
 def get_user_api():
-    """Obtiene la conexión API del usuario actual"""
+    """Obtiene la conexión API del usuario actual con reconexión automática"""
     try:
         user_id = session.get('user_id')
         email = session.get('email')
         password = session.get('password')
         
         if not user_id or not email:
+            logger.warning("No hay datos de sesión")
             return None
         
-        # Obtener del gestor de sesiones
+        # Intentar obtener del gestor de sesiones
         session_mgr = get_session_manager()
-        api = session_mgr.get_api(user_id, email, password)
+        if session_mgr:
+            api = session_mgr.get_api(user_id, email, password)
+            if api:
+                # Verificar que la conexión esté activa
+                try:
+                    api.get_balance()
+                    return api
+                except:
+                    logger.info("Conexión API inactiva, reconectando...")
         
-        return api
+        # Si no hay API o está desconectada, reconectar
+        logger.info(f"Reconectando API para usuario {user_id}")
         
-    except Exception as e:
-        logger.error(f"Error obteniendo API: {str(e)}")
-        return None 
-        #Implementar sistema de sesiones persistentes
+        try:
+            from iqapi_websocket_fix import SafeIQOption
+            api = SafeIQOption(email, password)
+        except:
+            api = IQ_Option(email, password)
         
+        check, reason = api.connect()
+        
+        if check:
+            # Guardar nueva conexión
+            if session_mgr:
+                session_mgr.save_session(user_id, api, email)
+            return api
+        else:
+            logger.error(f"Error reconectando: {reason}")
+            return None
+            
     except Exception as e:
         logger.error(f"Error obteniendo API: {str(e)}")
         return None
