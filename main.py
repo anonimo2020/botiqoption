@@ -675,6 +675,7 @@ def login():
         print("🔍 Razón cruda de IQ Option:", reason)
         
         logger.info(f"Resultado conexión - Check: {check}, Reason: {reason}")
+        logging.info(f"Login exitoso para {email}. Sesión: {session.sid if hasattr(session, 'sid') else 'N/A'}")
         
         if not check:
             # Manejar diferentes tipos de error
@@ -938,6 +939,7 @@ def get_balance():
         
         balance = api.get_balance()
         
+        
         # Calcular métricas
         user_id = session.get('user_id')
         metrics = calculate_user_metrics(user_id)
@@ -946,6 +948,7 @@ def get_balance():
             'balance': balance,
             'metrics': metrics
         })
+        ogging.info(f"Petición de balance. Usuario: {session.get('email')}, Session ID: {session.sid if hasattr(session, 'sid') else 'N/A'}")
         
     except Exception as e:
         logger.error(f"Error obteniendo balance: {str(e)}")
