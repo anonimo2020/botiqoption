@@ -7,7 +7,7 @@ redis==4.6.0
 gunicorn==21.2.0
 
 # IQ Option API
-git+https://github.com/LucasLobier/iqoptionapi.git
+git+https://github.com/Lu-Yi-Hsun/iqoptionapi.git
 
 
 # Data analysis
