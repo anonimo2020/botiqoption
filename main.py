@@ -153,6 +153,7 @@ def health_check():
             'session_manager': 'unknown'
         }
     }
+    return jsonify(health_status)
 
 # Telegram configuration
 TELEGRAM_BOT_TOKEN = "8147187392:AAFMyIC0EL0-9u63MzEfDqvqytujQFoVSLE"
@@ -1252,11 +1253,7 @@ def calculate_user_metrics(user_id: str) -> dict:
         'strategy_performance': stats['strategy_performance']
     }
 
-# Health check endpoint
-@app.route('/health', methods=['GET'])
-def health_check():
-    """Endpoint de health check para Render"""
-    return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()})
+
 
 # Error handlers
 @app.errorhandler(404)
