@@ -6,10 +6,9 @@ from typing import Dict, List, Optional, Tuple
 import json
 import traceback
 
-from flask import Flask, request, jsonify, session
+from flask import Flask, request, jsonify, session, make_response
 from flask_cors import CORS
 from flask_session import Session
-from flask import make_response
 import redis
 import requests
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -46,12 +45,13 @@ from security import (
 
 # Configuración de logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG if os.environ.get('FLASK_ENV') == 'development' else logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
 # Configuración de Flask
+is_production = os.environ.get('FLASK_ENV') == 'production'
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 app.config['SESSION_TYPE'] = 'redis'
@@ -129,6 +129,30 @@ def after_request(response):
     response.headers['Content-Security-Policy'] = "default-src 'self' https://iqoptionbot.ct.ws; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"
     
     return response
+@app.route('/', methods=['GET'])
+def index():
+    return jsonify({
+        'status': 'online',
+        'service': 'IQ Option Bot API',
+        'version': '1.0.0',
+        'endpoints': {
+            'health': '/health',
+            'login': '/api/login',
+            'strategies': '/api/strategies'
+        }
+    })
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Endpoint de health check para Render"""
+    health_status = {
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat(),
+        'services': {
+            'api': 'online',
+            'redis': 'unknown',
+            'session_manager': 'unknown'
+        }
+    }
 
 # Telegram configuration
 TELEGRAM_BOT_TOKEN = "8147187392:AAFMyIC0EL0-9u63MzEfDqvqytujQFoVSLE"
