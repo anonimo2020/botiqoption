@@ -607,7 +607,13 @@ def login():
 
         
         # Obtener información del usuario
-        profile = api.profile  # ✅ CORRECTO
+      
+        api.get_profile_ansyc()  # ✅ IMPORTANTE: carga el perfil internamente
+        profile = api.profile
+        
+        if not profile or "user_id" not in profile:
+            return jsonify({"success": False, "message": "No se pudo obtener el perfil del usuario"}), 500
+        
         balance = api.get_balance()
         
         # Guardar en sesión
