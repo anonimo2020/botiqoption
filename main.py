@@ -582,13 +582,10 @@ def login():
         
         if not email or not password:
             return jsonify({'success': False, 'message': 'Email y contraseña requeridos'}), 400
-        
-        check, reason = api.connect()
-        print("🔍 Razón cruda de IQ Option:", reason)
-
         # Conectar con IQ Option
         api = IQ_Option(email, password)
         check, reason = api.connect()
+        print("🔍 Razón cruda de IQ Option:", reason)
 
         if not check:
             try:
