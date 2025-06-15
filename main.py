@@ -5,15 +5,128 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import json
 import traceback
+import sys
 
+# Configuración de logging detallado
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# IMPORTANTE: Aplicar parches ANTES de importar IQOptionAPI
+logger.info("🔧 Aplicando parches de compatibilidad...")
+
+# Parche para websocket-client
+import websocket
+
+# Guardar referencias originales
+_original_on_message = None
+_original_on_error = None
+_original_on_close = None
+_original_on_open = None
+
+def patch_websocket_callbacks():
+    """Parche para manejar diferentes versiones de websocket-client"""
+    try:
+        from iqoptionapi.ws.client import WebsocketClient
+        
+        # Guardar métodos originales
+        global _original_on_message, _original_on_error, _original_on_close, _original_on_open
+        
+        if hasattr(WebsocketClient, 'on_message'):
+            _original_on_message = WebsocketClient.on_message
+        if hasattr(WebsocketClient, 'on_error'):
+            _original_on_error = WebsocketClient.on_error
+        if hasattr(WebsocketClient, 'on_close'):
+            _original_on_close = WebsocketClient.on_close
+        if hasattr(WebsocketClient, 'on_open'):
+            _original_on_open = WebsocketClient.on_open
+        
+        # Nuevos métodos que aceptan argumentos variables
+        def patched_on_message(self, ws, message=None):
+            try:
+                actual_message = message if message is not None else ws
+                if _original_on_message:
+                    # Intentar llamar con diferentes números de argumentos
+                    try:
+                        _original_on_message(self, actual_message)
+                    except TypeError:
+                        _original_on_message(actual_message)
+            except Exception as e:
+                logger.debug(f"Error en on_message (ignorado): {e}")
+        
+        def patched_on_error(self, ws, error=None):
+            try:
+                actual_error = error if error is not None else ws
+                if _original_on_error:
+                    try:
+                        _original_on_error(self, actual_error)
+                    except TypeError:
+                        _original_on_error(actual_error)
+            except Exception as e:
+                logger.debug(f"Error en on_error (ignorado): {e}")
+        
+        def patched_on_close(self, ws=None, close_status_code=None, close_msg=None):
+            try:
+                if _original_on_close:
+                    try:
+                        _original_on_close(self)
+                    except TypeError:
+                        try:
+                            _original_on_close(self, ws)
+                        except TypeError:
+                            _original_on_close()
+            except Exception as e:
+                logger.debug(f"Error en on_close (ignorado): {e}")
+        
+        def patched_on_open(self, ws=None):
+            try:
+                if _original_on_open:
+                    try:
+                        _original_on_open(self)
+                    except TypeError:
+                        _original_on_open(self, ws)
+            except Exception as e:
+                logger.debug(f"Error en on_open (ignorado): {e}")
+        
+        # Aplicar parches
+        WebsocketClient.on_message = patched_on_message
+        WebsocketClient.on_error = patched_on_error
+        WebsocketClient.on_close = patched_on_close
+        WebsocketClient.on_open = patched_on_open
+        
+        logger.info("✅ Parches de WebSocket aplicados correctamente")
+        return True
+        
+    except Exception as e:
+        logger.warning(f"⚠️ No se pudieron aplicar parches: {e}")
+        return False
+
+# Aplicar parches antes de importar
+patch_websocket_callbacks()
+
+# Ahora importar Flask y demás
 from flask import Flask, request, jsonify, session, make_response
 from flask_cors import CORS
 from flask_session import Session
 import redis
 import requests
-from werkzeug.security import generate_password_hash, check_password_hash
 
-from iqoptionapi.stable_api import IQ_Option
+# Importar IQOptionAPI con manejo de errores
+try:
+    from iqoptionapi.stable_api import IQ_Option
+    logger.info("✅ IQOptionAPI importada correctamente")
+except ImportError as e:
+    logger.error(f"❌ Error importando IQOptionAPI: {e}")
+    logger.error("Instalando IQOptionAPI...")
+    os.system("pip install -U git+https://github.com/Lu-Yi-Hsun/iqoptionapi.git")
+    from iqoptionapi.stable_api import IQ_Option
+
+# Resto de imports
 import pandas as pd
 import numpy as np
 from ta import add_all_ta_features
@@ -22,147 +135,87 @@ from ta.trend import MACD, CCIIndicator, EMAIndicator, SMAIndicator
 from ta.volatility import BollingerBands, AverageTrueRange
 import time
 
-# Import session manager, async handler, database, monitoring and security
-from session_manager import init_session_manager, get_session_manager
-from async_handler import get_async_handler
-from database import init_database, get_database
-from monitoring import init_monitoring, get_monitor
-import os
-
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-REDIS_URL = os.getenv("REDIS_URL")
-if not REDIS_URL:
-    raise RuntimeError("REDIS_URL no está definida en el entorno de Render")
-
-init_session_manager(redis_url=REDIS_URL)
-
-
-from security import (
-    require_auth, rate_limit, validate_request_data, 
-    add_security_headers, validate_trading_params
-)
-
-# Configuración de logging
-logging.basicConfig(
-    level=logging.DEBUG if os.environ.get('FLASK_ENV') == 'development' else logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Imports locales con manejo de errores
+try:
+    from session_manager import init_session_manager, get_session_manager
+    from async_handler import get_async_handler
+    from database import init_database, get_database
+    from monitoring import init_monitoring, get_monitor
+    from security import (
+        require_auth, rate_limit, validate_request_data, 
+        add_security_headers, validate_trading_params
+    )
+except ImportError as e:
+    logger.warning(f"⚠️ Módulos locales no disponibles: {e}")
+    # Funciones dummy para que no falle
+    def init_session_manager(*args, **kwargs): pass
+    def get_session_manager(): return None
+    def init_database(*args, **kwargs): pass
+    def get_database(): return None
+    def init_monitoring(*args, **kwargs): pass
+    def get_monitor(): return None
+    def require_auth(f): return f
+    def rate_limit(*args, **kwargs): return lambda f: f
+    def validate_request_data(*args): return lambda f: f
+    def add_security_headers(response): return response
+    def validate_trading_params(data): return True, None
 
 # Configuración de Flask
-is_production = os.environ.get('FLASK_ENV') == 'production'
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
-app.config['SESSION_TYPE'] = 'redis'
-app.config['SESSION_REDIS'] = redis.from_url(os.environ.get('REDIS_URL', 'redis://localhost:6379'))
-app.config['SESSION_PERMANENT'] = True
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
-app.config['SESSION_COOKIE_SECURE'] = True
-app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'None'
 
-# Inicializar sesión
-Session(app)
+# Detectar entorno
+is_production = os.environ.get('FLASK_ENV') == 'production'
 
-# Inicializar gestor de sesiones
-redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
-init_session_manager(redis_url)
-
-# Inicializar base de datos
-init_database(redis_url)
-
-# Inicializar monitoreo
-init_monitoring(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
-
-# Configurar CORS
-CORS(app, 
-     supports_credentials=True, 
-     origins=['https://iqoptionbot.ct.ws', 'http://localhost:3000'],  # Añade localhost para desarrollo
-     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-     allow_headers=['Content-Type', 'Authorization', 'X-Requested-With'],
-     expose_headers=['Content-Type', 'X-CSRFToken'])
-# Mejorar la configuración de sesiones para cookies cross-origin
+# Configuración de la aplicación
 app.config.update(
     SECRET_KEY=os.environ.get('SECRET_KEY', 'your-secret-key-here'),
     SESSION_TYPE='redis',
     SESSION_REDIS=redis.from_url(os.environ.get('REDIS_URL', 'redis://localhost:6379')),
     SESSION_PERMANENT=True,
     PERMANENT_SESSION_LIFETIME=timedelta(hours=24),
-    SESSION_COOKIE_SECURE=True,  # Solo HTTPS en producción
+    SESSION_COOKIE_SECURE=is_production,
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE='None',  # Necesario para cross-origin
+    SESSION_COOKIE_SAMESITE='None' if is_production else 'Lax',
     SESSION_COOKIE_NAME='iqbot_session',
-    SESSION_COOKIE_PATH='/',
-    # En desarrollo, podrías necesitar:
-    # SESSION_COOKIE_SECURE=False if os.environ.get('FLASK_ENV') == 'development' else True
+    SESSION_COOKIE_PATH='/'
 )
-# Añadir este middleware para manejar preflight requests
-@app.before_request
-def handle_preflight():
-    if request.method == "OPTIONS":
-        response = make_response()
-        response.headers.add("Access-Control-Allow-Origin", request.headers.get('Origin', '*'))
-        response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization,X-Requested-With")
-        response.headers.add('Access-Control-Allow-Methods', "GET,POST,PUT,DELETE,OPTIONS")
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
-        return response
 
-# Configurar headers de seguridad
-@app.after_request
-def after_request(response):
-    origin = request.headers.get('Origin')
-    if origin in ['https://iqoptionbot.ct.ws', 'http://localhost:3000']:
-        response.headers.add('Access-Control-Allow-Origin', origin)
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
-    
-    # Headers de seguridad (ajustados para permitir cross-origin)
-    response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['X-Frame-Options'] = 'DENY'
-    response.headers['X-XSS-Protection'] = '1; mode=block'
-    
-    # Solo en producción
-    if os.environ.get('FLASK_ENV') == 'production':
-        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
-    
-    # CSP más permisivo para permitir conexiones
-    response.headers['Content-Security-Policy'] = "default-src 'self' https://iqoptionbot.ct.ws; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"
-    
-    return response
-@app.route('/', methods=['GET'])
-def index():
-    return jsonify({
-        'status': 'online',
-        'service': 'IQ Option Bot API',
-        'version': '1.0.0',
-        'endpoints': {
-            'health': '/health',
-            'login': '/api/login',
-            'strategies': '/api/strategies'
-        }
-    })
-@app.route('/health', methods=['GET'])
-def health_check():
-    """Endpoint de health check para Render"""
-    health_status = {
-        'status': 'healthy',
-        'timestamp': datetime.now().isoformat(),
-        'services': {
-            'api': 'online',
-            'redis': 'unknown',
-            'session_manager': 'unknown'
-        }
-    }
-    return jsonify(health_status)
+# Inicializar sesión
+Session(app)
 
-# Telegram configuration
-TELEGRAM_BOT_TOKEN = "8147187392:AAFMyIC0EL0-9u63MzEfDqvqytujQFoVSLE"
-TELEGRAM_CHAT_ID = "7009100334"
+# Configurar CORS
+CORS(app, 
+     resources={r"/api/*": {
+         "origins": ["https://iqoptionbot.ct.ws", "http://localhost:3000", "http://localhost:5173"],
+         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+         "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+         "supports_credentials": True,
+         "max_age": 3600
+     }})
 
-# Global bot instances storage
+# Inicializar servicios
+redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
+try:
+    init_session_manager(redis_url)
+    init_database(redis_url)
+    logger.info("✅ Servicios inicializados")
+except Exception as e:
+    logger.warning(f"⚠️ Error inicializando servicios: {e}")
+
+# Telegram
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
+
+if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
+    try:
+        init_monitoring(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
+    except:
+        pass
+
+# Global bot instances
 active_bots: Dict[str, 'TradingBot'] = {}
 
-# Trading strategies configuration
+# Trading strategies
 STRATEGIES = {
     "conservative_rsi": {
         "name": "RSI Conservador",
@@ -211,6 +264,237 @@ STRATEGIES = {
     }
 }
 
+# Middleware para manejo de CORS y logging
+@app.before_request
+def before_request():
+    # Log de la petición
+    logger.info(f"📨 {request.method} {request.path} from {request.headers.get('Origin', 'Unknown')}")
+    
+    # Manejar OPTIONS
+    if request.method == "OPTIONS":
+        response = make_response()
+        origin = request.headers.get('Origin')
+        
+        if origin in ['https://iqoptionbot.ct.ws', 'http://localhost:3000', 'http://localhost:5173']:
+            response.headers['Access-Control-Allow-Origin'] = origin
+        else:
+            response.headers['Access-Control-Allow-Origin'] = '*'
+        
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Max-Age'] = '3600'
+        return response
+
+@app.after_request
+def after_request(response):
+    origin = request.headers.get('Origin')
+    if origin in ['https://iqoptionbot.ct.ws', 'http://localhost:3000', 'http://localhost:5173']:
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+    
+    # Headers de seguridad básicos
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    
+    return response
+
+# Endpoints básicos
+@app.route('/', methods=['GET'])
+def index():
+    return jsonify({
+        'status': 'online',
+        'service': 'IQ Option Bot API',
+        'version': '2.0.0'
+    })
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat()
+    })
+
+# Login endpoint
+@app.route('/api/login', methods=['POST'])
+def login():
+    """Endpoint de login con IQ Option"""
+    try:
+        logger.info("🔐 Intento de login recibido")
+        
+        # Obtener datos
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': 'No se recibieron datos'}), 400
+        
+        email = data.get('email')
+        password = data.get('password')
+        
+        if not email or not password:
+            return jsonify({'success': False, 'message': 'Email y contraseña requeridos'}), 400
+        
+        logger.info(f"📧 Intentando login para: {email}")
+        
+        # Crear instancia de IQ Option
+        try:
+            # Volver a aplicar parches por si acaso
+            patch_websocket_callbacks()
+            
+            api = IQ_Option(email, password)
+            logger.info("✅ Instancia IQ_Option creada")
+            
+            # Conectar con timeout
+            logger.info("🔌 Conectando con IQ Option...")
+            check, reason = api.connect()
+            
+            logger.info(f"📊 Resultado: check={check}, reason={reason}")
+            
+            if not check:
+                # Analizar el error
+                error_msg = "Error de conexión"
+                
+                if reason:
+                    reason_str = str(reason)
+                    if "invalid_credentials" in reason_str:
+                        error_msg = "Email o contraseña incorrectos"
+                    elif "2fa" in reason_str.lower():
+                        error_msg = "Autenticación de dos factores activada. Por favor desactívala temporalmente."
+                    elif "[Errno -2]" in reason_str:
+                        error_msg = "No se puede conectar con IQ Option. Verifica tu conexión a internet."
+                    else:
+                        error_msg = f"Error: {reason_str[:100]}"
+                
+                logger.error(f"❌ Login fallido: {error_msg}")
+                return jsonify({
+                    'success': False,
+                    'message': error_msg
+                }), 401
+            
+            # Login exitoso
+            logger.info("✅ Login exitoso, obteniendo datos...")
+            
+            # Obtener balance
+            try:
+                balance = api.get_balance()
+                logger.info(f"💰 Balance: ${balance}")
+            except Exception as e:
+                logger.warning(f"No se pudo obtener balance: {e}")
+                balance = 0
+            
+            # Crear sesión
+            user_id = email.split('@')[0]
+            session['user_id'] = user_id
+            session['email'] = email
+            session['password'] = password
+            session['api_connected'] = True
+            session.permanent = True
+            
+            # Guardar en caché local
+            active_bots[user_id] = {'api': api}
+            
+            logger.info(f"✅ Sesión creada para {user_id}")
+            
+            # Respuesta exitosa
+            return jsonify({
+                'success': True,
+                'user': {
+                    'id': user_id,
+                    'name': user_id,
+                    'email': email,
+                    'balance': float(balance) if balance else 0
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"❌ Error creando conexión: {str(e)}")
+            logger.error(traceback.format_exc())
+            return jsonify({
+                'success': False,
+                'message': 'Error conectando con IQ Option. Por favor intenta nuevamente.'
+            }), 503
+            
+    except Exception as e:
+        logger.error(f"❌ Error general: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'message': 'Error interno del servidor'
+        }), 500
+
+@app.route('/api/logout', methods=['POST'])
+def logout():
+    """Endpoint de logout"""
+    try:
+        user_id = session.get('user_id')
+        
+        # Limpiar bot si existe
+        if user_id in active_bots:
+            del active_bots[user_id]
+        
+        # Limpiar sesión
+        session.clear()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        logger.error(f"Error en logout: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/strategies', methods=['GET'])
+def get_strategies():
+    """Obtiene las estrategias disponibles"""
+    strategies_list = []
+    
+    for strategy_id, strategy in STRATEGIES.items():
+        strategies_list.append({
+            'id': strategy_id,
+            'name': strategy['name'],
+            'risk_level': strategy['risk_level'],
+            'description': strategy['description'],
+            'min_confidence': strategy['min_confidence'],
+            'timeframe': strategy['timeframe']
+        })
+    
+    return jsonify({'strategies': strategies_list})
+
+# Función helper para obtener API del usuario
+def get_user_api():
+    """Obtiene la conexión API del usuario actual"""
+    try:
+        user_id = session.get('user_id')
+        
+        # Primero buscar en caché local
+        if user_id in active_bots and 'api' in active_bots[user_id]:
+            api = active_bots[user_id]['api']
+            # Verificar que esté conectada
+            try:
+                api.get_balance()
+                return api
+            except:
+                logger.warning("API en caché desconectada")
+        
+        # Si no está en caché o está desconectada, reconectar
+        email = session.get('email')
+        password = session.get('password')
+        
+        if email and password:
+            logger.info("Reconectando API...")
+            api = IQ_Option(email, password)
+            check, reason = api.connect()
+            
+            if check:
+                # Guardar en caché
+                if user_id not in active_bots:
+                    active_bots[user_id] = {}
+                active_bots[user_id]['api'] = api
+                return api
+        
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo API: {str(e)}")
+        return None
+
+# Clase TradingBot completa con todas las funcionalidades
 class TradingBot:
     def __init__(self, user_id: str, api: IQ_Option, config: dict):
         self.user_id = user_id
@@ -222,6 +506,7 @@ class TradingBot:
         self.session_profit = 0
         self.strategy = STRATEGIES[config['strategy']]
         self.results_history = []
+        self.current_candles = []  # Para almacenar velas en tiempo real
         
     async def start(self):
         """Inicia el bot de trading"""
@@ -286,6 +571,9 @@ class TradingBot:
             
             if not candles:
                 return None
+            
+            # Guardar las últimas velas para mostrar en tiempo real
+            self.current_candles = candles[-30:]  # Últimas 30 velas
             
             # Convertir a DataFrame
             df = pd.DataFrame(candles)
@@ -514,7 +802,7 @@ class TradingBot:
         return signal
     
     async def _execute_trade(self, signal: dict) -> dict:
-        """Ejecuta una operación"""
+        """Ejecuta una operación con velas en tiempo real"""
         try:
             amount = self._calculate_trade_amount()
             
@@ -526,8 +814,13 @@ class TradingBot:
                 amount = max_amount
                 logger.warning(f"Monto ajustado al 50% del balance: ${amount}")
             
+            # Obtener velas actuales para mostrar
+            symbol = self.config['symbol']
+            current_candles = self.api.get_candles(symbol, 60, 30, time.time())
+            
             # Ejecutar operación
-            success, order_id = self.api.buy(amount, self.config['symbol'], signal['direction'], 1)
+            logger.info(f"Ejecutando {signal['direction']} por ${amount} en {symbol}")
+            success, order_id = self.api.buy(amount, symbol, signal['direction'], 1)
             
             if success:
                 # Esperar resultado
@@ -543,24 +836,33 @@ class TradingBot:
                     'result': result,
                     'profit': amount * 0.85 if result > 0 else -amount,
                     'timestamp': datetime.now(),
-                    'confidence': signal['confidence']
+                    'confidence': signal['confidence'],
+                    'candles': current_candles,  # Incluir velas reales
+                    'indicators': signal['indicators']
                 }
                 
-                # Notificar por Telegram
+                # Notificar por Telegram con velas
                 self._send_trade_notification(trade_result, signal)
                 
                 # Guardar en base de datos
-                db = get_database()
-                db.save_trade(self.user_id, {
-                    **trade_result,
-                    'strategy': self.config['strategy'],
-                    'symbol': self.config['symbol']
-                })
+                try:
+                    db = get_database()
+                    if db:
+                        db.save_trade(self.user_id, {
+                            **trade_result,
+                            'strategy': self.config['strategy'],
+                            'symbol': self.config['symbol']
+                        })
+                except:
+                    pass
                 
                 # Registrar en monitor
-                monitor = get_monitor()
-                if monitor:
-                    monitor.record_operation(result > 0, trade_result['profit'])
+                try:
+                    monitor = get_monitor()
+                    if monitor:
+                        monitor.record_operation(result > 0, trade_result['profit'])
+                except:
+                    pass
                 
                 return trade_result
             else:
@@ -602,6 +904,12 @@ class TradingBot:
         emoji = "✅" if result['result'] > 0 else "❌"
         direction = "📈 CALL" if result['direction'] == 'call' else "📉 PUT"
         
+        # Formatear información de velas
+        last_candle = result['candles'][-1] if result['candles'] else None
+        candle_info = ""
+        if last_candle:
+            candle_info = f"\n📊 Última vela: O:{last_candle['open']:.5f} H:{last_candle['max']:.5f} L:{last_candle['min']:.5f} C:{last_candle['close']:.5f}"
+        
         message = f"""
 {emoji} **Operación Ejecutada**
 {direction} - ${result['amount']:.2f}
@@ -610,280 +918,21 @@ Resultado: {'GANADA' if result['result'] > 0 else 'PERDIDA'}
 Profit: ${result['profit']:.2f}
 Balance Session: ${self.session_profit:.2f}
 Operaciones: {self.operations_count}
+{candle_info}
 """
         send_telegram_notification(message)
     
     def get_status(self) -> dict:
-        """Obtiene el estado actual del bot"""
+        """Obtiene el estado actual del bot con velas en tiempo real"""
         return {
             'running': self.running,
             'operations_count': self.operations_count,
             'consecutive_losses': self.consecutive_losses,
             'session_profit': self.session_profit,
             'strategy': self.strategy['name'],
-            'last_operations': self.results_history[-10:] if self.results_history else []
+            'last_operations': self.results_history[-10:] if self.results_history else [],
+            'current_candles': self.current_candles  # Incluir velas actuales
         }
-
-def send_telegram_notification(message: str):
-    """Envía notificación a Telegram"""
-    try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        data = {
-            "chat_id": TELEGRAM_CHAT_ID,
-            "text": message,
-            "parse_mode": "Markdown"
-        }
-        requests.post(url, data=data)
-    except Exception as e:
-        logger.error(f"Error enviando notificación Telegram: {str(e)}")
-
-def is_otc_time() -> bool:
-    """Verifica si es fin de semana (mercado OTC)"""
-    now = datetime.now()
-    # Sábado = 5, Domingo = 6
-    return now.weekday() >= 5
-
-# Reemplaza la función login() en main.py con esta versión corregida:
-
-@app.route('/api/login', methods=['POST'])
-@rate_limit(max_requests=5, window_seconds=300)
-@validate_request_data(['email', 'password'])
-def login():
-    """Endpoint de login con IQ Option"""
-    try:
-        data = request.get_json()
-        email = data.get('email')
-        password = data.get('password')
-        
-        if not email or not password:
-            return jsonify({'success': False, 'message': 'Email y contraseña requeridos'}), 400
-        
-        logger.info(f"Intentando login para: {email}")
-        
-        # Crear instancia de IQ Option con el wrapper seguro
-        try:
-            from iqapi_websocket_fix import SafeIQOption
-            api = SafeIQOption(email, password)
-        except Exception as e:
-            logger.error(f"Error creando instancia IQ Option: {str(e)}")
-            # Fallback a la API normal si el wrapper falla
-            api = IQ_Option(email, password)
-        
-        # Conectar con manejo mejorado de errores
-        check, reason = api.connect()
-        print("✅ ¿Conexión exitosa?:", check)
-        print("🔍 Razón cruda de IQ Option:", reason)
-        
-        logger.info(f"Resultado conexión - Check: {check}, Reason: {reason}")
-        logging.info(f"Login exitoso para {email}. Sesión: {session.sid if hasattr(session, 'sid') else 'N/A'}")
-        
-        if not check:
-            # Manejar diferentes tipos de error
-            error_message = "Error de conexión"
-            
-            if reason:
-                reason_str = str(reason).lower()
-                
-                # Manejar errores como string JSON
-                try:
-                    if isinstance(reason, str) and reason.startswith('{'):
-                        error_data = json.loads(reason)
-                        code = error_data.get("code", "")
-                        message = error_data.get("message", str(reason))
-                    else:
-                        code = ""
-                        message = str(reason)
-                except:
-                    code = ""
-                    message = str(reason)
-                
-                # Mapear errores conocidos
-                if "invalid_credentials" in reason_str or "unauthorized" in reason_str:
-                    error_message = "Credenciales incorrectas. Verifica tu email y contraseña."
-                elif "2fa" in reason_str or "two factor" in reason_str:
-                    error_message = "Autenticación de dos factores requerida. Por favor, desactívala temporalmente en tu cuenta IQ Option."
-                elif "device_not_trusted" in reason_str:
-                    error_message = "Dispositivo no confiable. Verifica tu email para autorizar este dispositivo."
-                elif "blocked" in reason_str or "banned" in reason_str:
-                    error_message = "Tu cuenta está bloqueada. Contacta con soporte de IQ Option."
-                elif "maintenance" in reason_str:
-                    error_message = "IQ Option está en mantenimiento. Intenta más tarde."
-                elif "connection" in reason_str or "network" in reason_str:
-                    error_message = "Error de conexión. Verifica tu conexión a internet."
-                else:
-                    error_message = f"Error de IQ Option: {message}"
-            
-            logger.error(f"Login fallido: {error_message}")
-            return jsonify({
-                "success": False, 
-                "message": error_message,
-                "error_code": code if 'code' in locals() else "unknown"
-            }), 401
-        
-        # Login exitoso - obtener información del usuario
-        try:
-            # Esperar un momento para que la API se estabilice
-            import time
-            time.sleep(1)
-            
-            # Obtener perfil con reintentos
-            profile = None
-            for i in range(3):
-                try:
-                    profile_msg = api.get_profile_ansyc()
-                    if profile_msg:
-                        profile = profile_msg
-                        break
-                except Exception as e:
-                    logger.warning(f"Intento {i+1} de obtener perfil falló: {str(e)}")
-                    time.sleep(1)
-            
-            if not profile:
-                logger.error("No se pudo obtener el perfil del usuario")
-                return jsonify({
-                    "success": False, 
-                    "message": "Error obteniendo perfil. Intenta nuevamente."
-                }), 500
-            
-            # Extraer user_id correctamente
-            user_id = None
-            if isinstance(profile, dict):
-                # Si es un diccionario directo
-                user_id = profile.get('user_id') or profile.get('id') or profile.get('userId')
-            else:
-                # Si es un objeto con atributos
-                for attr in ['user_id', 'id', 'userId']:
-                    if hasattr(profile, attr):
-                        user_id = getattr(profile, attr)
-                        break
-            
-            if not user_id:
-                logger.error(f"No se pudo extraer user_id del perfil: {type(profile)}")
-                logger.debug(f"Perfil completo: {profile}")
-                # Generar un ID temporal basado en el email
-                import hashlib
-                user_id = hashlib.md5(email.encode()).hexdigest()[:10]
-            
-            # Obtener balance con reintentos
-            balance = 0
-            for i in range(3):
-                try:
-                    balance = api.get_balance()
-                    if balance is not None:
-                        break
-                except Exception as e:
-                    logger.warning(f"Intento {i+1} de obtener balance falló: {str(e)}")
-                    time.sleep(1)
-            
-            # Guardar en sesión
-            session['user_id'] = str(user_id)
-            session['email'] = email
-            session['password'] = password  # En producción, usar token
-            session['api_connected'] = True
-            session.permanent = True
-            
-            # Guardar SSID si está disponible
-            try:
-                if hasattr(api, 'api') and hasattr(api.api, 'ssid'):
-                    session['iq_session'] = api.api.ssid
-            except:
-                pass
-            
-            # Guardar en gestor de sesiones
-            try:
-                session_mgr = get_session_manager()
-                if session_mgr:
-                    session_mgr.save_session(str(user_id), api, email)
-            except Exception as e:
-                logger.warning(f"No se pudo guardar en session manager: {str(e)}")
-            
-            # Notificar login exitoso
-            try:
-                send_telegram_notification(f"🔐 Login exitoso: {email}\n💰 Balance: ${balance:.2f}")
-            except:
-                pass
-            
-            # Preparar respuesta
-            response_data = {
-                'success': True,
-                'user': {
-                    'id': str(user_id),
-                    'name': email.split('@')[0],
-                    'email': email,
-                    'balance': float(balance) if balance else 0
-                }
-            }
-            
-            logger.info(f"Login exitoso para {email}, user_id: {user_id}")
-            
-            return jsonify(response_data), 200
-            
-        except Exception as e:
-            logger.error(f"Error procesando datos del usuario: {str(e)}")
-            logger.error(traceback.format_exc())
-            
-            # Si llegamos aquí, el login fue exitoso pero hubo problemas con los datos
-            # Devolver respuesta mínima exitosa
-            return jsonify({
-                'success': True,
-                'user': {
-                    'id': email.split('@')[0],
-                    'name': email.split('@')[0],
-                    'email': email,
-                    'balance': 0
-                },
-                'warning': 'Login exitoso pero algunos datos no pudieron ser obtenidos'
-            }), 200
-            
-    except Exception as e:
-        logger.error(f"Error general en login: {str(e)}")
-        logger.error(traceback.format_exc())
-        
-        return jsonify({
-            'success': False, 
-            'message': 'Error interno del servidor. Por favor, intenta nuevamente.'
-        }), 500
-
-# También actualiza la función get_user_api() para mejor manejo de reconexión:
-
-
-
-@app.route('/api/logout', methods=['POST'])
-def logout():
-    """Endpoint de logout"""
-    try:
-        user_id = session.get('user_id')
-        
-        # Detener bot si está activo
-        if user_id in active_bots:
-            active_bots[user_id].stop()
-            del active_bots[user_id]
-        
-        # Limpiar sesión
-        session.clear()
-        
-        return jsonify({'success': True})
-        
-    except Exception as e:
-        logger.error(f"Error en logout: {str(e)}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/strategies', methods=['GET'])
-def get_strategies():
-    """Obtiene las estrategias disponibles"""
-    strategies_list = []
-    
-    for strategy_id, strategy in STRATEGIES.items():
-        strategies_list.append({
-            'id': strategy_id,
-            'name': strategy['name'],
-            'risk_level': strategy['risk_level'],
-            'description': strategy['description'],
-            'min_confidence': strategy['min_confidence'],
-            'timeframe': strategy['timeframe']
-        })
-    
-    return jsonify({'strategies': strategies_list})
 
 @app.route('/api/symbols', methods=['GET'])
 @require_auth
@@ -939,7 +988,6 @@ def get_balance():
         
         balance = api.get_balance()
         
-        
         # Calcular métricas
         user_id = session.get('user_id')
         metrics = calculate_user_metrics(user_id)
@@ -948,7 +996,6 @@ def get_balance():
             'balance': balance,
             'metrics': metrics
         })
-        ogging.info(f"Petición de balance. Usuario: {session.get('email')}, Session ID: {session.sid if hasattr(session, 'sid') else 'N/A'}")
         
     except Exception as e:
         logger.error(f"Error obteniendo balance: {str(e)}")
@@ -1003,7 +1050,6 @@ def calculate_optimal_amount():
 
 @app.route('/api/start_bot', methods=['POST'])
 @require_auth
-@rate_limit(max_requests=10, window_seconds=60)
 def start_bot():
     """Inicia el bot de trading"""
     try:
@@ -1012,8 +1058,10 @@ def start_bot():
             return jsonify({'error': 'No autenticado'}), 401
         
         # Verificar si ya hay un bot activo
-        if user_id in active_bots and active_bots[user_id].running:
-            return jsonify({'error': 'Ya hay un bot activo'}), 400
+        if user_id in active_bots and 'bot' in active_bots[user_id]:
+            bot = active_bots[user_id]['bot']
+            if bot.running:
+                return jsonify({'error': 'Ya hay un bot activo'}), 400
         
         data = request.get_json()
         
@@ -1045,11 +1093,28 @@ def start_bot():
         
         # Crear y ejecutar bot
         bot = TradingBot(user_id, api, config)
-        active_bots[user_id] = bot
         
-        # Ejecutar bot en background usando el async handler
-        async_handler = get_async_handler()
-        async_handler.create_task(bot.start())
+        if user_id not in active_bots:
+            active_bots[user_id] = {}
+        active_bots[user_id]['bot'] = bot
+        
+        # Ejecutar bot en background
+        try:
+            async_handler = get_async_handler()
+            if async_handler:
+                async_handler.create_task(bot.start())
+            else:
+                # Fallback si no hay async handler
+                import threading
+                thread = threading.Thread(target=lambda: asyncio.run(bot.start()))
+                thread.daemon = True
+                thread.start()
+        except:
+            # Fallback simple
+            import threading
+            thread = threading.Thread(target=lambda: asyncio.run(bot.start()))
+            thread.daemon = True
+            thread.start()
         
         # Notificar inicio
         strategy_info = STRATEGIES[config['strategy']]
@@ -1079,19 +1144,15 @@ def stop_bot():
         if not user_id:
             return jsonify({'error': 'No autenticado'}), 401
         
-        if user_id not in active_bots:
+        if user_id not in active_bots or 'bot' not in active_bots[user_id]:
             return jsonify({'error': 'No hay bot activo'}), 400
         
-        bot = active_bots[user_id]
+        bot = active_bots[user_id]['bot']
         status = bot.get_status()
         bot.stop()
         
         # Esperar a que se detenga
-        import time
         time.sleep(1)
-        
-        # Eliminar de bots activos
-        del active_bots[user_id]
         
         # Notificar
         send_telegram_notification(
@@ -1118,13 +1179,13 @@ def get_bot_status():
         if not user_id:
             return jsonify({'error': 'No autenticado'}), 401
         
-        if user_id not in active_bots:
+        if user_id not in active_bots or 'bot' not in active_bots[user_id]:
             return jsonify({
                 'running': False,
                 'message': 'No hay bot activo'
             })
         
-        bot = active_bots[user_id]
+        bot = active_bots[user_id]['bot']
         status = bot.get_status()
         
         return jsonify(status)
@@ -1135,7 +1196,7 @@ def get_bot_status():
 
 @app.route('/api/live_data', methods=['GET'])
 def get_live_data():
-    """Obtiene datos en tiempo real del mercado"""
+    """Obtiene datos en tiempo real del mercado con velas reales"""
     try:
         user_id = session.get('user_id')
         if not user_id:
@@ -1147,11 +1208,10 @@ def get_live_data():
         
         # Obtener símbolo actual del bot o usar default
         symbol = 'EURUSD'
-        if user_id in active_bots:
-            symbol = active_bots[user_id].config['symbol']
+        if user_id in active_bots and 'bot' in active_bots[user_id]:
+            symbol = active_bots[user_id]['bot'].config['symbol']
         
-        # Obtener velas
-        import time
+        # Obtener velas reales
         candles = api.get_candles(symbol, 60, 30, time.time())
         
         # Convertir para frontend
@@ -1162,7 +1222,8 @@ def get_live_data():
                 'open': candle['open'],
                 'high': candle['max'],
                 'low': candle['min'],
-                'close': candle['close']
+                'close': candle['close'],
+                'volume': candle.get('volume', 0)
             })
         
         # Calcular indicadores si hay bot activo
@@ -1170,8 +1231,8 @@ def get_live_data():
         signal = {}
         bot_status = None
         
-        if user_id in active_bots:
-            bot = active_bots[user_id]
+        if user_id in active_bots and 'bot' in active_bots[user_id]:
+            bot = active_bots[user_id]['bot']
             bot_status = bot.get_status()
             
             # Calcular indicadores
@@ -1182,95 +1243,82 @@ def get_live_data():
                 
                 indicators = bot._calculate_indicators(df)
                 
+                # Obtener señal actual
+                signal = bot._generate_signal(indicators, df)
+                
                 # Añadir volatilidad
                 returns = df['close'].pct_change()
                 indicators['volatility'] = returns.std() * 100
+                
+                # Añadir tendencia de corto plazo
+                indicators['short_trend'] = "up" if df['close'].iloc[-1] > df['close'].iloc[-5] else "down"
+                indicators['price_change'] = ((df['close'].iloc[-1] - df['close'].iloc[-5]) / df['close'].iloc[-5]) * 100
         
         return jsonify({
             'candles': candles_data,
             'indicators': indicators,
             'signal': signal,
-            'bot_status': bot_status
+            'bot_status': bot_status,
+            'symbol': symbol,
+            'timestamp': datetime.now().isoformat()
         })
         
     except Exception as e:
         logger.error(f"Error obteniendo datos en vivo: {str(e)}")
         return jsonify({'error': 'Error obteniendo datos'}), 500
 
-def get_user_api():
-    """Obtiene la conexión API del usuario actual con reconexión automática"""
-    try:
-        user_id = session.get('user_id')
-        email = session.get('email')
-        password = session.get('password')
-        
-        if not user_id or not email:
-            logger.warning("No hay datos de sesión")
-            return None
-        
-        # Intentar obtener del gestor de sesiones
-        session_mgr = get_session_manager()
-        if session_mgr:
-            api = session_mgr.get_api(user_id, email, password)
-            if api:
-                # Verificar que la conexión esté activa
-                try:
-                    api.get_balance()
-                    return api
-                except:
-                    logger.info("Conexión API inactiva, reconectando...")
-        
-        # Si no hay API o está desconectada, reconectar
-        logger.info(f"Reconectando API para usuario {user_id}")
-        
-        try:
-            from iqapi_websocket_fix import SafeIQOption
-            api = SafeIQOption(email, password)
-        except:
-            api = IQ_Option(email, password)
-        
-        check, reason = api.connect()
-        
-        if check:
-            # Guardar nueva conexión
-            if session_mgr:
-                session_mgr.save_session(user_id, api, email)
-            return api
-        else:
-            logger.error(f"Error reconectando: {reason}")
-            return None
-            
-    except Exception as e:
-        logger.error(f"Error obteniendo API: {str(e)}")
-        return None
+# Funciones helper adicionales
+def is_otc_time() -> bool:
+    """Verifica si es fin de semana (mercado OTC)"""
+    now = datetime.now()
+    # Sábado = 5, Domingo = 6
+    return now.weekday() >= 5
 
 def calculate_user_metrics(user_id: str) -> dict:
     """Calcula métricas del usuario"""
-    db = get_database()
-    stats = db.get_user_stats(user_id)
+    try:
+        db = get_database()
+        if db:
+            stats = db.get_user_stats(user_id)
+            return {
+                'total_trades': stats['total_trades'],
+                'win_rate': stats['win_rate'],
+                'total_profit': stats['total_profit'],
+                'strategy_performance': stats['strategy_performance']
+            }
+    except:
+        pass
     
     return {
-        'total_trades': stats['total_trades'],
-        'win_rate': stats['win_rate'],
-        'total_profit': stats['total_profit'],
-        'strategy_performance': stats['strategy_performance']
+        'total_trades': 0,
+        'win_rate': 0,
+        'total_profit': 0,
+        'strategy_performance': {}
     }
 
+# Función para enviar notificaciones a Telegram
+def send_telegram_notification(message: str):
+    """Envía notificación a Telegram"""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+        
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        data = {
+            "chat_id": TELEGRAM_CHAT_ID,
+            "text": message,
+            "parse_mode": "Markdown"
+        }
+        requests.post(url, data=data, timeout=5)
+    except Exception as e:
+        logger.error(f"Error enviando notificación Telegram: {str(e)}")
 
-
-# Error handlers
-@app.errorhandler(404)
-def not_found(error):
-    return jsonify({'error': 'Endpoint no encontrado'}), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    return jsonify({'error': 'Error interno del servidor'}), 500
-
+# Iniciar aplicación
 if __name__ == '__main__':
-    # Configurar para producción
     port = int(os.environ.get('PORT', 5000))
-    debug = os.environ.get('FLASK_ENV') == 'development'
+    debug = not is_production
     
-    # Iniciar servidor
+    logger.info(f"🚀 Iniciando servidor en puerto {port}")
+    logger.info(f"🌍 Modo: {'Producción' if is_production else 'Desarrollo'}")
+    
     app.run(host='0.0.0.0', port=port, debug=debug)
