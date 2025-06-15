@@ -5,6 +5,7 @@ Flask-CORS==4.0.0
 Flask-Session==0.5.0
 redis==4.6.0
 gunicorn==21.2.0
+websocket-client==1.1.0
 
 # IQ Option API
 git+https://github.com/Lu-Yi-Hsun/iqoptionapi.git
