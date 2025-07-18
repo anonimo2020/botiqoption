@@ -5,11 +5,11 @@ Flask-CORS==4.0.0
 Flask-Session==0.5.0
 redis==4.6.0
 gunicorn==21.2.0
-websocket-client==1.1.0
 
-# IQ Option API
+# IQ Option API dependencies - ORDEN IMPORTANTE
+# Instalar primero websocket-client en la versión requerida por iqoptionapi
+websocket-client==0.56
 git+https://github.com/Lu-Yi-Hsun/iqoptionapi.git
-
 
 # Data analysis
 pandas==2.0.3
