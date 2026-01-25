@@ -33,10 +33,10 @@ def patch_websocket_callbacks():
     """Parche para manejar diferentes versiones de websocket-client"""
     try:
         from iqoptionapi.ws.client import WebsocketClient
-        
+
         # Guardar métodos originales
         global _original_on_message, _original_on_error, _original_on_close, _original_on_open
-        
+
         if hasattr(WebsocketClient, 'on_message'):
             _original_on_message = WebsocketClient.on_message
         if hasattr(WebsocketClient, 'on_error'):
@@ -45,20 +45,18 @@ def patch_websocket_callbacks():
             _original_on_close = WebsocketClient.on_close
         if hasattr(WebsocketClient, 'on_open'):
             _original_on_open = WebsocketClient.on_open
-        
-        # Nuevos métodos que aceptan argumentos variables
+
         def patched_on_message(self, ws, message=None):
             try:
                 actual_message = message if message is not None else ws
                 if _original_on_message:
-                    # Intentar llamar con diferentes números de argumentos
                     try:
                         _original_on_message(self, actual_message)
                     except TypeError:
                         _original_on_message(actual_message)
             except Exception as e:
                 logger.debug(f"Error en on_message (ignorado): {e}")
-        
+
         def patched_on_error(self, ws, error=None):
             try:
                 actual_error = error if error is not None else ws
@@ -69,7 +67,7 @@ def patch_websocket_callbacks():
                         _original_on_error(actual_error)
             except Exception as e:
                 logger.debug(f"Error en on_error (ignorado): {e}")
-        
+
         def patched_on_close(self, ws=None, close_status_code=None, close_msg=None):
             try:
                 if _original_on_close:
@@ -82,7 +80,7 @@ def patch_websocket_callbacks():
                             _original_on_close()
             except Exception as e:
                 logger.debug(f"Error en on_close (ignorado): {e}")
-        
+
         def patched_on_open(self, ws=None):
             try:
                 if _original_on_open:
@@ -92,21 +90,19 @@ def patch_websocket_callbacks():
                         _original_on_open(self, ws)
             except Exception as e:
                 logger.debug(f"Error en on_open (ignorado): {e}")
-        
-        # Aplicar parches
+
         WebsocketClient.on_message = patched_on_message
         WebsocketClient.on_error = patched_on_error
         WebsocketClient.on_close = patched_on_close
         WebsocketClient.on_open = patched_on_open
-        
+
         logger.info("✅ Parches de WebSocket aplicados correctamente")
         return True
-        
+
     except Exception as e:
         logger.warning(f"⚠️ No se pudieron aplicar parches: {e}")
         return False
 
-# Aplicar parches antes de importar
 patch_websocket_callbacks()
 
 # Ahora importar Flask y demás
@@ -142,12 +138,11 @@ try:
     from database import init_database, get_database
     from monitoring import init_monitoring, get_monitor
     from security import (
-        require_auth, rate_limit, validate_request_data, 
+        require_auth, rate_limit, validate_request_data,
         add_security_headers, validate_trading_params
     )
 except ImportError as e:
     logger.warning(f"⚠️ Módulos locales no disponibles: {e}")
-    # Funciones dummy para que no falle
     def init_session_manager(*args, **kwargs): pass
     def get_session_manager(): return None
     def init_database(*args, **kwargs): pass
@@ -164,18 +159,38 @@ except ImportError as e:
 app = Flask(__name__)
 
 # Detectar entorno
-is_production = os.environ.get('FLASK_ENV') == 'production'
+# ### OPT: Render a veces no setea FLASK_ENV como esperas; permitimos fallback por ENV var
+is_production = os.environ.get('FLASK_ENV', '').lower() == 'production' or os.environ.get('RENDER', '').lower() == 'true'
+
+# ### FIX: usar SECRET_KEY del entorno (y respetar FLASK_SECRET_KEY si existe)
+secret_key = os.environ.get('SECRET_KEY') or os.environ.get('FLASK_SECRET_KEY') or 'your-secret-key-here'
+
+# ### FIX: FRONTEND_URL real (tu dominio nuevo) + allowlist opcional adicional
+frontend_url = os.environ.get('FRONTEND_URL', 'https://botiqoption.ct.ws').strip()
+
+# Opcional: permitir varios orígenes separados por coma
+# ejemplo: FRONTEND_URL=https://botiqoption.ct.ws,https://otrodominio.com
+allowed_origins = [o.strip() for o in frontend_url.split(',') if o.strip()]
+
+# En local, permitimos también localhost
+allowed_origins += ["http://localhost:3000", "http://localhost:5173"]
+
+# ### FIX: cookies cross-site deben ser SameSite=None + Secure=True en producción
+cookie_samesite = os.environ.get('SESSION_COOKIE_SAMESITE', 'None' if is_production else 'Lax')
+cookie_secure_env = os.environ.get('SESSION_COOKIE_SECURE', 'True' if is_production else 'False')
+cookie_secure = True if str(cookie_secure_env).lower() in ("1", "true", "yes", "on") else False
 
 # Configuración de la aplicación
 app.config.update(
-    SECRET_KEY=os.environ.get('SECRET_KEY', 'your-secret-key-here'),
+    SECRET_KEY=secret_key,
     SESSION_TYPE='redis',
     SESSION_REDIS=redis.from_url(os.environ.get('REDIS_URL', 'redis://localhost:6379')),
     SESSION_PERMANENT=True,
     PERMANENT_SESSION_LIFETIME=timedelta(hours=24),
-    SESSION_COOKIE_SECURE=is_production,
+
+    SESSION_COOKIE_SECURE=cookie_secure,
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE='None' if is_production else 'Lax',
+    SESSION_COOKIE_SAMESITE=cookie_samesite,
     SESSION_COOKIE_NAME='iqbot_session',
     SESSION_COOKIE_PATH='/'
 )
@@ -183,15 +198,18 @@ app.config.update(
 # Inicializar sesión
 Session(app)
 
-# Configurar CORS
-CORS(app, 
-     resources={r"/api/*": {
-         "origins": ["https://iqoptionbot.ct.ws", "http://localhost:3000", "http://localhost:5173"],
-         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-         "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
-         "supports_credentials": True,
-         "max_age": 3600
-     }})
+# ### FIX: CORS único y consistente (con credenciales)
+# IMPORTANTE: NO uses "*" si supports_credentials=True
+CORS(
+    app,
+    resources={r"/api/*": {
+        "origins": allowed_origins,
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+        "supports_credentials": True,
+        "max_age": 3600
+    }},
+)
 
 # Inicializar servicios
 redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
@@ -269,33 +287,33 @@ STRATEGIES = {
 def before_request():
     # Log de la petición
     logger.info(f"📨 {request.method} {request.path} from {request.headers.get('Origin', 'Unknown')}")
-    
-    # Manejar OPTIONS
+
+    # ### FIX: NO forzamos CORS manual aquí salvo OPTIONS.
+    # Flask-CORS ya añade headers correctos.
     if request.method == "OPTIONS":
+        origin = request.headers.get('Origin', '')
         response = make_response()
-        origin = request.headers.get('Origin')
-        
-        if origin in ['https://iqoptionbot.ct.ws', 'http://localhost:3000', 'http://localhost:5173']:
+
+        # Solo permitir orígenes de allowlist
+        if origin in allowed_origins:
             response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
         else:
-            response.headers['Access-Control-Allow-Origin'] = '*'
-        
+            # Si no es origin permitido, no damos permisos (evita CORS ambiguo)
+            response.headers['Access-Control-Allow-Origin'] = 'null'
+
+        response.headers['Vary'] = 'Origin'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
-        response.headers['Access-Control-Allow-Credentials'] = 'true'
         response.headers['Access-Control-Max-Age'] = '3600'
         return response
 
 @app.after_request
 def after_request(response):
-    origin = request.headers.get('Origin')
-    if origin in ['https://iqoptionbot.ct.ws', 'http://localhost:3000', 'http://localhost:5173']:
-        response.headers['Access-Control-Allow-Origin'] = origin
-        response.headers['Access-Control-Allow-Credentials'] = 'true'
-    
-    # Headers de seguridad básicos
+    # ### FIX: NO duplicar lógica de CORS aquí, solo Vary y headers seguridad.
+    # Flask-CORS se encarga.
+    response.headers.setdefault('Vary', 'Origin')
     response.headers['X-Content-Type-Options'] = 'nosniff'
-    
     return response
 
 # Endpoints básicos
@@ -320,38 +338,33 @@ def login():
     """Endpoint de login con IQ Option"""
     try:
         logger.info("🔐 Intento de login recibido")
-        
-        # Obtener datos
+
         data = request.get_json()
         if not data:
             return jsonify({'success': False, 'message': 'No se recibieron datos'}), 400
-        
+
         email = data.get('email')
         password = data.get('password')
-        
+
         if not email or not password:
             return jsonify({'success': False, 'message': 'Email y contraseña requeridos'}), 400
-        
+
         logger.info(f"📧 Intentando login para: {email}")
-        
-        # Crear instancia de IQ Option
+
         try:
-            # Volver a aplicar parches por si acaso
             patch_websocket_callbacks()
-            
+
             api = IQ_Option(email, password)
             logger.info("✅ Instancia IQ_Option creada")
-            
-            # Conectar con timeout
+
             logger.info("🔌 Conectando con IQ Option...")
             check, reason = api.connect()
-            
+
             logger.info(f"📊 Resultado: check={check}, reason={reason}")
-            
+
             if not check:
-                # Analizar el error
                 error_msg = "Error de conexión"
-                
+
                 if reason:
                     reason_str = str(reason)
                     if "invalid_credentials" in reason_str:
@@ -362,38 +375,31 @@ def login():
                         error_msg = "No se puede conectar con IQ Option. Verifica tu conexión a internet."
                     else:
                         error_msg = f"Error: {reason_str[:100]}"
-                
+
                 logger.error(f"❌ Login fallido: {error_msg}")
-                return jsonify({
-                    'success': False,
-                    'message': error_msg
-                }), 401
-            
-            # Login exitoso
+                return jsonify({'success': False, 'message': error_msg}), 401
+
             logger.info("✅ Login exitoso, obteniendo datos...")
-            
-            # Obtener balance
+
             try:
                 balance = api.get_balance()
                 logger.info(f"💰 Balance: ${balance}")
             except Exception as e:
                 logger.warning(f"No se pudo obtener balance: {e}")
                 balance = 0
-            
-            # Crear sesión
+
             user_id = email.split('@')[0]
             session['user_id'] = user_id
             session['email'] = email
             session['password'] = password
             session['api_connected'] = True
             session.permanent = True
-            
-            # Guardar en caché local
+
+            # Cache local
             active_bots[user_id] = {'api': api}
-            
+
             logger.info(f"✅ Sesión creada para {user_id}")
-            
-            # Respuesta exitosa
+
             return jsonify({
                 'success': True,
                 'user': {
@@ -403,7 +409,7 @@ def login():
                     'balance': float(balance) if balance else 0
                 }
             })
-            
+
         except Exception as e:
             logger.error(f"❌ Error creando conexión: {str(e)}")
             logger.error(traceback.format_exc())
@@ -411,30 +417,24 @@ def login():
                 'success': False,
                 'message': 'Error conectando con IQ Option. Por favor intenta nuevamente.'
             }), 503
-            
+
     except Exception as e:
         logger.error(f"❌ Error general: {str(e)}")
         logger.error(traceback.format_exc())
-        return jsonify({
-            'success': False,
-            'message': 'Error interno del servidor'
-        }), 500
+        return jsonify({'success': False, 'message': 'Error interno del servidor'}), 500
 
 @app.route('/api/logout', methods=['POST'])
 def logout():
     """Endpoint de logout"""
     try:
         user_id = session.get('user_id')
-        
-        # Limpiar bot si existe
+
         if user_id in active_bots:
             del active_bots[user_id]
-        
-        # Limpiar sesión
+
         session.clear()
-        
         return jsonify({'success': True})
-        
+
     except Exception as e:
         logger.error(f"Error en logout: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -443,7 +443,6 @@ def logout():
 def get_strategies():
     """Obtiene las estrategias disponibles"""
     strategies_list = []
-    
     for strategy_id, strategy in STRATEGIES.items():
         strategies_list.append({
             'id': strategy_id,
@@ -453,7 +452,6 @@ def get_strategies():
             'min_confidence': strategy['min_confidence'],
             'timeframe': strategy['timeframe']
         })
-    
     return jsonify({'strategies': strategies_list})
 
 # Función helper para obtener API del usuario
@@ -461,38 +459,37 @@ def get_user_api():
     """Obtiene la conexión API del usuario actual"""
     try:
         user_id = session.get('user_id')
-        
-        # Primero buscar en caché local
+
         if user_id in active_bots and 'api' in active_bots[user_id]:
             api = active_bots[user_id]['api']
-            # Verificar que esté conectada
             try:
                 api.get_balance()
                 return api
             except:
                 logger.warning("API en caché desconectada")
-        
-        # Si no está en caché o está desconectada, reconectar
+
         email = session.get('email')
         password = session.get('password')
-        
+
         if email and password:
             logger.info("Reconectando API...")
             api = IQ_Option(email, password)
             check, reason = api.connect()
-            
+
             if check:
-                # Guardar en caché
                 if user_id not in active_bots:
                     active_bots[user_id] = {}
                 active_bots[user_id]['api'] = api
                 return api
-        
+
         return None
-        
+
     except Exception as e:
         logger.error(f"Error obteniendo API: {str(e)}")
         return None
+
+# --- TODO: aquí sigue tu código sin cambios: TradingBot, /api/symbols, /api/balance, /api/start_bot, etc.
+# Deja todo igual desde aquí hacia abajo.
 
 # Clase TradingBot completa con todas las funcionalidades
 class TradingBot:
