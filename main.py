@@ -154,13 +154,40 @@ is_production = os.environ.get('FLASK_ENV', '').lower() == 'production'
 
 secret_key = os.environ.get('SECRET_KEY') or os.environ.get('FLASK_SECRET_KEY') or 'your-secret-key-here'
 
+# Configuración CORS mejorada
 frontend_url = os.environ.get('FRONTEND_URL', 'https://botiqoption.ct.ws').strip()
-allowed_origins = [o.strip() for o in frontend_url.split(',') if o.strip()]
-allowed_origins += ["http://localhost:3000", "http://localhost:5173"]
+allowed_origins = []
 
-cookie_samesite = os.environ.get('SESSION_COOKIE_SAMESITE', 'None' if is_production else 'Lax')
-cookie_secure_env = os.environ.get('SESSION_COOKIE_SECURE', 'True' if is_production else 'False')
-cookie_secure = str(cookie_secure_env).lower() in ("1", "true", "yes", "on")
+# Agregar URL del frontend de producción
+if frontend_url:
+    allowed_origins.append(frontend_url)
+    allowed_origins.append(frontend_url.replace('https://', 'http://'))
+
+# Agregar URLs de desarrollo
+allowed_origins.extend([
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173"
+])
+
+# Si estás en producción, agregar el dominio de Render
+render_url = os.environ.get('https://botiqoption-4.onrender.com', '')
+if render_url:
+    allowed_origins.append(render_url)
+
+print(f"🌐 CORS Origins permitidos: {allowed_origins}")
+
+# Configuración de cookies más permisiva para desarrollo
+if is_production:
+    cookie_samesite = 'None'
+    cookie_secure = True
+else:
+    cookie_samesite = 'Lax'
+    cookie_secure = False
+
+print(f"🍪 Cookies: SameSite={cookie_samesite}, Secure={cookie_secure}")
 
 app.config.update(
     SECRET_KEY=secret_key,
@@ -168,23 +195,30 @@ app.config.update(
     SESSION_REDIS=redis.from_url(os.environ.get('REDIS_URL', 'redis://localhost:6379')),
     SESSION_PERMANENT=True,
     PERMANENT_SESSION_LIFETIME=timedelta(hours=24),
-
     SESSION_COOKIE_SECURE=cookie_secure,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE=cookie_samesite,
     SESSION_COOKIE_NAME='iqbot_session',
-    SESSION_COOKIE_PATH='/'
+    SESSION_COOKIE_PATH='/',
+    SESSION_USE_SIGNER=True,  # Firmar cookies para mayor seguridad
+    SESSION_KEY_PREFIX='iqbot:'  # Prefijo para keys en Redis
 )
+
+print(f"✅ Flask configurado correctamente")
 
 Session(app)
 
 CORS(
     app,
-    origins=allowed_origins,
+    resources={r"/api/*": {"origins": allowed_origins}},
     supports_credentials=True,
     allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept"],
     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    expose_headers=["Content-Type", "X-Total-Count"],
+    max_age=3600  # Cache preflight por 1 hora
 )
+
+print(f"✅ CORS configurado con {len(allowed_origins)} orígenes")
 
 redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
 try:
@@ -254,8 +288,18 @@ STRATEGIES = {
 }
 
 @app.before_request
-def log_request():
-    logger.info(f"📨 {request.method} {request.path} from {request.headers.get('Origin', 'Unknown')}")
+def handle_preflight():
+    """Maneja requests OPTIONS de preflight"""
+    if request.method == "OPTIONS":
+        response = jsonify({"status": "ok"})
+        origin = request.headers.get('Origin')
+        if origin in allowed_origins:
+            response.headers.add('Access-Control-Allow-Origin', origin)
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With')
+            response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
+            response.headers.add('Access-Control-Allow-Credentials', 'true')
+            response.headers.add('Access-Control-Max-Age', '3600')
+        return response, 200
 
 @app.after_request
 def after_request(response):
@@ -271,64 +315,93 @@ def index():
 def health_check():
     return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()})
 
-@app.route('/api/login', methods=['POST'])
+@app.route('/api/login', methods=['POST', 'OPTIONS'])
 def login():
+    """Endpoint de login con mejor manejo de errores"""
+    if request.method == 'OPTIONS':
+        return '', 204
+    
     try:
         logger.info("🔐 Intento de login recibido")
-
+        logger.info(f"📨 Headers: {dict(request.headers)}")
+        logger.info(f"🌐 Origin: {request.headers.get('Origin')}")
+        
         data = request.get_json(silent=True) or {}
         email = data.get('email')
         password = data.get('password')
 
         if not email or not password:
-            return jsonify({'success': False, 'message': 'Email y contraseña requeridos'}), 400
+            logger.warning("❌ Email o contraseña faltantes")
+            return jsonify({
+                'success': False, 
+                'message': 'Email y contraseña requeridos'
+            }), 400
 
         logger.info(f"📧 Intentando login para: {email}")
 
         try:
+            # Aplicar parches de compatibilidad
             patch_websocket_callbacks()
+            
+            # Crear instancia de API
             api = IQ_Option(email, password)
             logger.info("✅ Instancia IQ_Option creada")
 
+            # Intentar conectar
             logger.info("🔌 Conectando con IQ Option...")
             check, reason = api.connect()
-            logger.info(f"📊 Resultado: check={check}, reason={reason}")
+            logger.info(f"📊 Resultado conexión: check={check}")
 
             if not check:
-                error_msg = "Error de conexión"
+                error_msg = "Error de conexión con IQ Option"
+                
                 if reason:
                     reason_str = str(reason)
-                    if "invalid_credentials" in reason_str:
+                    logger.error(f"❌ Razón del error: {reason_str}")
+                    
+                    if "invalid_credentials" in reason_str.lower() or "incorrect" in reason_str.lower():
                         error_msg = "Email o contraseña incorrectos"
-                    elif "2fa" in reason_str.lower():
-                        error_msg = "Autenticación de dos factores activada. Por favor desactívala temporalmente."
-                    elif "[Errno -2]" in reason_str:
-                        error_msg = "No se puede conectar con IQ Option. Verifica tu conexión a internet."
+                    elif "2fa" in reason_str.lower() or "two" in reason_str.lower():
+                        error_msg = "Desactiva la autenticación de dos factores en tu cuenta de IQ Option"
+                    elif "network" in reason_str.lower() or "connection" in reason_str.lower():
+                        error_msg = "Error de red. Verifica tu conexión a internet"
                     else:
-                        error_msg = f"Error: {reason_str[:120]}"
+                        error_msg = f"Error: {reason_str[:200]}"
 
-                logger.error(f"❌ Login fallido: {error_msg}")
-                return jsonify({'success': False, 'message': error_msg}), 401
+                return jsonify({
+                    'success': False, 
+                    'message': error_msg
+                }), 401
 
+            # Obtener balance
             try:
                 balance = api.get_balance()
+                logger.info(f"💰 Balance obtenido: ${balance}")
             except Exception as e:
-                logger.warning(f"No se pudo obtener balance: {e}")
+                logger.warning(f"⚠️ No se pudo obtener balance: {e}")
                 balance = 0
 
+            # Crear sesión
             user_id = email.split('@')[0]
+            session.clear()  # Limpiar sesión anterior
             session['user_id'] = user_id
             session['email'] = email
             session['password'] = password
             session['api_connected'] = True
+            session['login_time'] = datetime.now().isoformat()
             session.permanent = True
 
-            active_bots[user_id] = {'api': api}
+            # Guardar en caché de APIs activas
+            if user_id not in active_bots:
+                active_bots[user_id] = {}
+            active_bots[user_id]['api'] = api
 
-            logger.info(f"✅ Sesión creada para {user_id}")
+            logger.info(f"✅ Login exitoso para {user_id}")
+            logger.info(f"🔑 Session ID: {session.get('_id', 'N/A')}")
 
-            return jsonify({
+            response = jsonify({
                 'success': True,
+                'message': 'Login exitoso',
                 'user': {
                     'id': user_id,
                     'name': user_id,
@@ -336,16 +409,30 @@ def login():
                     'balance': float(balance) if balance else 0
                 }
             })
+            
+            # Agregar headers CORS explícitos
+            origin = request.headers.get('Origin')
+            if origin in allowed_origins:
+                response.headers['Access-Control-Allow-Origin'] = origin
+                response.headers['Access-Control-Allow-Credentials'] = 'true'
+            
+            return response
 
         except Exception as e:
-            logger.error(f"❌ Error creando conexión: {str(e)}")
-            logger.error(traceback.format_exc())
-            return jsonify({'success': False, 'message': 'Error conectando con IQ Option. Por favor intenta nuevamente.'}), 503
+            logger.error(f"❌ Error en proceso de login: {str(e)}")
+            logger.error(f"📋 Traceback: {traceback.format_exc()}")
+            return jsonify({
+                'success': False, 
+                'message': f'Error conectando con IQ Option: {str(e)[:100]}'
+            }), 503
 
     except Exception as e:
-        logger.error(f"❌ Error general: {str(e)}")
-        logger.error(traceback.format_exc())
-        return jsonify({'success': False, 'message': 'Error interno del servidor'}), 500
+        logger.error(f"❌ Error general en login: {str(e)}")
+        logger.error(f"📋 Traceback: {traceback.format_exc()}")
+        return jsonify({
+            'success': False, 
+            'message': 'Error interno del servidor'
+        }), 500
 
 @app.route('/api/logout', methods=['POST'])
 def logout():
