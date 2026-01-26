@@ -218,15 +218,50 @@ CORS(
     max_age=3600  # Cache preflight por 1 hora
 )
 
-print(f"✅ CORS configurado con {len(allowed_origins)} orígenes")
+# Configuración de sesiones mejorada
+redis_url = os.environ.get('REDIS_URL')
 
-redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
-try:
-    init_session_manager(redis_url)
-    init_database(redis_url)
-    logger.info("✅ Servicios inicializados")
-except Exception as e:
-    logger.warning(f"⚠️ Error inicializando servicios: {e}")
+if redis_url and 'localhost' not in redis_url:
+    # Producción con Redis
+    print(f"🔴 Usando Redis: {redis_url[:30]}...")
+    try:
+        app.config.update(
+            SECRET_KEY=secret_key,
+            SESSION_TYPE='redis',
+            SESSION_REDIS=redis.from_url(redis_url),
+            SESSION_PERMANENT=True,
+            PERMANENT_SESSION_LIFETIME=timedelta(hours=24),
+            SESSION_COOKIE_SECURE=cookie_secure,
+            SESSION_COOKIE_HTTPONLY=True,
+            SESSION_COOKIE_SAMESITE=cookie_samesite,
+            SESSION_COOKIE_NAME='iqbot_session',
+            SESSION_COOKIE_PATH='/',
+            SESSION_USE_SIGNER=True,
+            SESSION_KEY_PREFIX='iqbot:'
+        )
+        print("✅ Redis configurado correctamente")
+    except Exception as e:
+        print(f"❌ Error configurando Redis: {e}")
+        # Fallback a null session
+        app.config.update(
+            SECRET_KEY=secret_key,
+            SESSION_TYPE='null',
+            SESSION_PERMANENT=False
+        )
+else:
+    # Sin Redis - Usar sesiones básicas de Flask
+    print("⚠️ Usando sesiones básicas de Flask (en memoria)")
+    app.config.update(
+        SECRET_KEY=secret_key,
+        SESSION_TYPE='null',  # Sesiones solo en cookies firmadas
+        SESSION_COOKIE_SECURE=cookie_secure,
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE=cookie_samesite,
+        SESSION_COOKIE_NAME='iqbot_session',
+        SESSION_COOKIE_PATH='/'
+    )
+
+print(f"✅ Flask configurado correctamente")
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
