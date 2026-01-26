@@ -154,6 +154,11 @@ is_production = os.environ.get('FLASK_ENV', '').lower() == 'production'
 
 secret_key = os.environ.get('SECRET_KEY') or os.environ.get('FLASK_SECRET_KEY') or 'your-secret-key-here'
 
+
+def sync_session_cookie_name():
+    cookie_name = app.config.get("SESSION_COOKIE_NAME", "session")
+    setattr(app, "session_cookie_name", cookie_name)
+
 # Configuración CORS mejorada
 frontend_url = os.environ.get('FRONTEND_URL', 'https://botiqoption.ct.ws').strip()
 allowed_origins = []
@@ -192,7 +197,10 @@ print(f"🍪 Cookies: SameSite={cookie_samesite}, Secure={cookie_secure}")
 app.config.update(
     SECRET_KEY=secret_key,
     SESSION_TYPE='redis',
-    SESSION_REDIS=redis.from_url(os.environ.get('REDIS_URL', 'redis://localhost:6379')),
+    SESSION_REDIS=redis.from_url(
+        os.environ.get('REDIS_URL', 'redis://localhost:6379'),
+        decode_responses=True
+    ),
     SESSION_PERMANENT=True,
     PERMANENT_SESSION_LIFETIME=timedelta(hours=24),
     SESSION_COOKIE_SECURE=cookie_secure,
@@ -206,18 +214,6 @@ app.config.update(
 
 print(f"✅ Flask configurado correctamente")
 
-Session(app)
-
-CORS(
-    app,
-    resources={r"/api/*": {"origins": allowed_origins}},
-    supports_credentials=True,
-    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept"],
-    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    expose_headers=["Content-Type", "X-Total-Count"],
-    max_age=3600  # Cache preflight por 1 hora
-)
-
 # Configuración de sesiones mejorada
 redis_url = os.environ.get('REDIS_URL')
 
@@ -228,7 +224,7 @@ if redis_url and 'localhost' not in redis_url:
         app.config.update(
             SECRET_KEY=secret_key,
             SESSION_TYPE='redis',
-            SESSION_REDIS=redis.from_url(redis_url),
+            SESSION_REDIS=redis.from_url(redis_url, decode_responses=True),
             SESSION_PERMANENT=True,
             PERMANENT_SESSION_LIFETIME=timedelta(hours=24),
             SESSION_COOKIE_SECURE=cookie_secure,
@@ -262,6 +258,19 @@ else:
     )
 
 print(f"✅ Flask configurado correctamente")
+sync_session_cookie_name()
+
+Session(app)
+
+CORS(
+    app,
+    resources={r"/api/*": {"origins": allowed_origins}},
+    supports_credentials=True,
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    expose_headers=["Content-Type", "X-Total-Count"],
+    max_age=3600  # Cache preflight por 1 hora
+)
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
