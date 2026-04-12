@@ -1,0 +1,53 @@
+# ============================================================================
+# CORE DEPENDENCIES - ORDEN CRÍTICO
+# ============================================================================
+# Eventlet PRIMERO (necesario para gunicorn + socketio)
+eventlet==0.35.2
+
+# Flask stack
+Flask==2.3.3
+Flask-CORS==4.0.0
+Flask-Session==0.4.0
+flask-socketio==5.3.6
+
+# Socket.IO
+python-socketio==5.11.1
+
+# Redis
+redis==4.6.0
+
+# Gunicorn
+gunicorn==21.2.0
+
+# Werkzeug (compatible con Flask 2.3.3)
+Werkzeug<3
+
+# ============================================================================
+# IQ OPTION API
+# ============================================================================
+# WebSocket client (versión compatible con iqoptionapi)
+simple-websocket
+
+websocket-client==0.56.0
+
+# IQ Option API desde GitHub
+git+https://github.com/Lu-Yi-Hsun/iqoptionapi.git
+
+# ============================================================================
+# DATA ANALYSIS
+# ============================================================================
+pandas==2.1.4
+numpy==1.26.2
+ta==0.11.0
+
+# ============================================================================
+# UTILITIES
+# ============================================================================
+requests==2.31.0
+python-dotenv==1.0.0
+pytz==2023.3
+
+# ============================================================================
+# ASYNC SUPPORT
+# ============================================================================
+aiohttp==3.8.5
