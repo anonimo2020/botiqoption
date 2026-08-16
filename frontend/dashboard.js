@@ -949,10 +949,13 @@ function initWebSocket() {
   try {
     logLine("🔌 Conectando WebSocket...", "neutral");
     
+    const userId = sessionStorage.getItem('userId') || (sessionStorage.getItem('userEmail') ? sessionStorage.getItem('userEmail').split('@')[0] : '');
     const targetUrl = API_BASE_URL || window.location.origin;
     socket = io(targetUrl, {
       transports: ['websocket', 'polling'],
       withCredentials: true,
+      auth: { user_id: userId },
+      query: { user_id: userId },
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
@@ -1449,27 +1452,8 @@ async function init() {
 
   // ✅ PASO 1: VALIDAR SESIÓN ANTES DE TODO
   try {
-    logLine("🔐 Validando sesión...", "neutral");
-
-    const validateRes = await fetch(`${API_BASE_URL}/api/validate_session`, {
-      credentials: 'include',
-      mode: "cors",
-      cache: "no-store"
-    });
-
-    if (validateRes.status === 401) {
-      logLine("❌ Sin sesión válida - redirigiendo al login", "bad");
-      handleSessionExpired("No hay sesión válida");
-      return;
-    }
-
-    if (!validateRes.ok) {
-      throw new Error(`HTTP ${validateRes.status}`);
-    }
-
-    const sessionData = await validateRes.json();
-
-    if (!sessionData.valid) {
+    const sessionData = await apiFetch("/api/validate_session");
+    if (!sessionData || !sessionData.valid) {
       logLine("❌ Sesión inválida - redirigiendo al login", "bad");
       handleSessionExpired("Sesión no válida");
       return;

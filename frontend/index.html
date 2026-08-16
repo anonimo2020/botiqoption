@@ -707,8 +707,10 @@
         try { data = await res.json(); } catch (_) {}
 
         if (res.ok && data.success) {
+          const userId = data.user?.id || data.user_id || email.split('@')[0];
           sessionStorage.setItem('accountType', accountType);
           sessionStorage.setItem('userEmail', email);
+          sessionStorage.setItem('userId', userId);
           if (data.balance !== undefined) sessionStorage.setItem('lastKnownBalance', data.balance);
           if (data.username) sessionStorage.setItem('username', data.username);
 

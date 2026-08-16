@@ -767,13 +767,20 @@ logger.info(f"✅ WebSocket configurado (modo: {ASYNC_MODE})")
 # ============================================================================
 
 @socketio.on('connect')
-def handle_connect():
-    # Verificar sesión antes de aceptar conexión
-    if 'user_id' not in session:
-        logger.warning("Socket.IO: Intento de conexión sin sesión válida")
-        return False  # Rechazar conexión
+def handle_connect(auth=None):
+    user_id = session.get('user_id')
+    if not user_id and auth and isinstance(auth, dict):
+        user_id = auth.get('user_id')
+    if not user_id:
+        user_id = request.args.get('user_id')
     
-    logger.info(f"Socket.IO: Usuario {session['user_id']} conectado")
+    if user_id and user_id in active_bots:
+        session['user_id'] = user_id
+        session['ssid'] = active_bots[user_id].get('ssid')
+        logger.info(f"Socket.IO: Usuario {user_id} autenticado y conectado")
+        return True
+    
+    logger.info(f"Socket.IO: Conexión aceptada (sid: {request.sid})")
     return True
 
 @socketio.on('disconnect')
