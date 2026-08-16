@@ -399,34 +399,31 @@ from functools import wraps
 
 def require_auth(f):
     """
-    ✅ MEJORADO: Decorador de autenticación con manejo de OPTIONS.
-    
-    Mejoras:
-    - OPTIONS siempre devuelve 200 (CORS preflight)
-    - Limpia cookies inválidas automáticamente
-    - Mensajes claros de error
+    ✅ DECORADOR ROBUSTO: Autenticación por Sesión Y Header (Anti-bloqueo de cookies cross-site).
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # ✅ CRÍTICO: Permitir siempre OPTIONS (preflight CORS)
         if request.method == 'OPTIONS':
             response = make_response('', 204)
             response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-User-Id, Accept'
             return response
         
-        # Verificar si hay user_id en sesión
-        if 'user_id' not in session:
-            # Si hay cookie pero no sesión válida → limpiar
-            cookie_name = app.config.get("SESSION_COOKIE_NAME", "iqbot_session")
-            if request.cookies.get(cookie_name):
-                logger.warning(f"⚠️ Cookie zombie detectada - limpiando")
-                return clear_invalid_session()
+        user_id = session.get('user_id')
+        if not user_id:
+            user_id = request.headers.get('X-User-Id')
+            if not user_id:
+                auth_h = request.headers.get('Authorization', '')
+                if auth_h.startswith('Bearer '):
+                    user_id = auth_h.split('Bearer ')[1].strip()
             
-            # No hay cookie → 401 simple
-            return jsonify({"error": "Authentication required"}), 401
+            if user_id and user_id in active_bots:
+                session['user_id'] = user_id
+                session['ssid'] = active_bots[user_id].get('ssid')
         
-        # Sesión válida → continuar
+        if not user_id or user_id not in active_bots:
+            return jsonify({"error": "Authentication required", "valid": False}), 401
+        
         return f(*args, **kwargs)
     
     return decorated_function
@@ -1716,18 +1713,21 @@ def login():
 @app.route('/api/validate_session', methods=['GET'])
 def validate_session():
     """
-    Valida si la sesión actual es válida.
-    Usado por el frontend al cargar el dashboard.
+    Valida si la sesión actual es válida (por cookie o por header X-User-Id).
     """
     user_id = session.get('user_id')
-    
     if not user_id:
-        # Si hay cookie pero no sesión válida → limpiar
-        if request.cookies.get(app.config.get("SESSION_COOKIE_NAME", "iqbot_session")):
-            return clear_invalid_session()
+        user_id = request.headers.get('X-User-Id')
+        if not user_id:
+            auth_h = request.headers.get('Authorization', '')
+            if auth_h.startswith('Bearer '):
+                user_id = auth_h.split('Bearer ')[1].strip()
+
+    if not user_id or user_id not in active_bots:
         return jsonify({"valid": False}), 401
     
-    # Sesión válida
+    session['user_id'] = user_id
+    session['ssid'] = active_bots[user_id].get('ssid')
     return jsonify({
         "valid": True,
         "user_id": user_id
