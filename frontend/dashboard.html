@@ -21,19 +21,28 @@
   <link rel="stylesheet" href="dashboard.css?v=10">
   <style>
     html, body {
+      margin: 0 !important;
+      padding: 0 !important;
+      min-height: 100vh !important;
       height: auto !important;
-      min-height: 100% !important;
-      max-height: none !important;
       overflow-x: hidden !important;
       overflow-y: auto !important;
-      position: static !important;
+      background: #0a0a0f !important;
     }
-    .bg-container, .main-layout, .app-layout, .container, .dashboard-grid, .layout {
+    .bg-container {
+      position: fixed !important;
+      inset: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      pointer-events: none !important;
+      z-index: -1 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    .dashboard-grid, .main-layout, .app-layout {
+      min-height: calc(100vh - 80px) !important;
       height: auto !important;
-      min-height: 100vh !important;
-      max-height: none !important;
       overflow: visible !important;
-      position: static !important;
     }
   </style>
 </head>

@@ -1895,20 +1895,25 @@ body {
    DESBLOQUEO DE SCROLL EN PC Y MÓVILES
    ========================================================================== */
 html, body {
+  min-height: 100vh !important;
   height: auto !important;
-  min-height: 100% !important;
-  max-height: none !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
-  position: static !important;
 }
 
-.bg-container, .main-layout, .app-layout, .container, .dashboard-grid, .layout {
+.bg-container {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: -1 !important;
+  pointer-events: none !important;
+}
+
+.main-layout, .app-layout, .container, .dashboard-grid, .layout {
+  min-height: calc(100vh - 80px) !important;
   height: auto !important;
-  min-height: 100vh !important;
-  max-height: none !important;
   overflow: visible !important;
-  position: static !important;
 }
 
 .sidebar-left, .sidebar-right, .main-chart-area, .panel-log {
