@@ -1862,10 +1862,20 @@ def get_user_api():
     try:
         user_id = session.get('user_id')
         if not user_id:
+            user_id = request.headers.get('X-User-Id')
+            if not user_id:
+                auth_h = request.headers.get('Authorization', '')
+                if auth_h.startswith('Bearer '):
+                    user_id = auth_h.split('Bearer ')[1].strip()
+            if user_id and user_id in active_bots:
+                session['user_id'] = user_id
+                session['ssid'] = active_bots[user_id].get('ssid')
+        
+        if not user_id:
             logger.warning("⚠️ No hay user_id en sesión")
             return None
         
-        session_ssid = session.get('ssid')
+        session_ssid = session.get('ssid') or (active_bots.get(user_id, {}).get('ssid') if user_id in active_bots else None)
         if not session_ssid:
             logger.warning("⚠️ No hay SSID en sesión")
             return None
