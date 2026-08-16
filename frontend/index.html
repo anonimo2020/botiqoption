@@ -631,7 +631,7 @@
     // =============================================
     // CORE LOGIC & CONFIG
     // =============================================
-    const API_BASE = (window.__CONFIG__?.API) || (window.location.protocol.startsWith('http') ? window.location.origin : '');
+    const API_BASE = (window.__CONFIG__?.API) || (window.location.origin.includes('ct.ws') ? 'https://botiqoption-4.onrender.com' : (window.location.protocol.startsWith('http') ? window.location.origin : 'https://botiqoption-4.onrender.com'));
     let accountType = "PRACTICE";
 
     // UI Helpers

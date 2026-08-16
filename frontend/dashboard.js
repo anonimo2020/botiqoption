@@ -1,7 +1,7 @@
 // ============================================
 // CONFIGURATION
 // ============================================
-const API_BASE_URL = (window.__CONFIG__?.API) || (window.location.protocol.startsWith('http') ? window.location.origin : '');
+const API_BASE_URL = (window.__CONFIG__?.API) || (window.location.origin.includes('ct.ws') ? 'https://botiqoption-4.onrender.com' : (window.location.protocol.startsWith('http') ? window.location.origin : 'https://botiqoption-4.onrender.com'));
 let accountType = sessionStorage.getItem('accountType') || "PRACTICE";
 let symbolsCache = [];
 let strategiesCache = [];
