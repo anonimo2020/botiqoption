@@ -638,24 +638,26 @@ def sync_session_cookie_name():
     cookie_name = app.config.get("SESSION_COOKIE_NAME", "iqbot_session")
     setattr(app, "session_cookie_name", cookie_name)
 
-# Configuración CORS flexible para Render y desarrollo
+# Configuración CORS flexible para Render, InfinityFree y desarrollo
+allowed_origins = [
+    "https://botiqoption.ct.ws",
+    "http://botiqoption.ct.ws",
+    "https://www.botiqoption.ct.ws",
+    "http://www.botiqoption.ct.ws",
+    "https://botiqoption-4.onrender.com",
+    "http://localhost:3000",
+    "http://localhost:5000",
+    "http://localhost:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5000",
+    "http://127.0.0.1:5173"
+]
 frontend_url = os.environ.get('FRONTEND_URL', '').strip()
-allowed_origins = ["*"]  # Permitir orígenes dinámicos
-if frontend_url:
+if frontend_url and frontend_url not in allowed_origins:
     allowed_origins.append(frontend_url)
-    allowed_origins.append(frontend_url.replace('https://', 'http://'))
 
-
-
-print(f"🌐 CORS Origins permitidos: {allowed_origins}")
-
-# Configuración de cookies más permisiva para desarrollo
-if is_production:
-    cookie_samesite = 'None'
-    cookie_secure = True
-else:
-    cookie_samesite = 'Lax'
-    cookie_secure = False
+cookie_samesite = 'None'
+cookie_secure = True
 
 print(f"🍪 Cookies: SameSite={cookie_samesite}, Secure={cookie_secure}")
 
@@ -1394,6 +1396,12 @@ STRATEGIES = {
 
 @app.after_request
 def after_request(response):
+    origin = request.headers.get('Origin')
+    if origin:
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept, Cookie'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
     response.headers.setdefault('Vary', 'Origin')
     response.headers['X-Content-Type-Options'] = 'nosniff'
     return response

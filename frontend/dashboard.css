@@ -66,11 +66,13 @@
 
 html,
 body {
-  height: 100%;
+  min-height: 100vh;
+  height: auto;
   font-family: 'Outfit', -apple-system, system-ui, sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
   overflow-x: hidden;
+  overflow-y: auto;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -81,7 +83,7 @@ body {
 .bg-container {
   position: fixed;
   inset: 0;
-  z-index: 0;
+  z-index: -1;
   overflow: hidden;
   pointer-events: none;
 }
