@@ -2887,9 +2887,9 @@ class TradingBot:
         }
         
         strategy_id = self.config['strategy']
-        htf_trend = indicators.get('htf_trend', 'neutral')
-
-        if strategy_id in ("conservative_rsi",):
+        if strategy_id == "ai_adaptive_auto":
+            signal = self._ai_adaptive_auto_signal(indicators, df)
+        elif strategy_id in ("conservative_rsi",):
             signal = self._conservative_rsi_signal(indicators, df)
         elif strategy_id in ("macd_cross", "triple_ema_macd"):
             signal = self._macd_cross_signal(indicators, df)
@@ -2930,8 +2930,116 @@ class TradingBot:
                 signal['confidence'] = penalized
                 logger.info(f"   ⚠️ HTF contrario: confianza reducida a {penalized:.0f}%")
 
-        return signal if signal and signal.get('confidence', 0) > 0 else None
-    
+    def _ai_adaptive_auto_signal(self, indicators: dict, df: pd.DataFrame) -> dict:
+        """
+        🤖 ESTRATEGIA ADAPTATIVA CUANTITATIVA + IA LLaMA 3.3
+        =====================================================
+        1. Diagnostica el régimen de mercado (Tendencia vs Rango).
+        2. Aplica filtro anti-trampa estricto (3 velas consecutivas = veto).
+        3. Exige mecha de rechazo en reversiones o pullback a la EMA en tendencias.
+        4. Alta tasa de acierto y filtro de calidad de entrada.
+        """
+        signal = {'direction': None, 'confidence': 0, 'indicators': indicators}
+        if df is None or len(df) < 10:
+            return signal
+
+        price = indicators['price']
+        rsi5 = indicators.get('rsi5', 50)
+        stoch5_k = indicators.get('stoch5_k', 50)
+        stoch5_d = indicators.get('stoch5_d', 50)
+        ema_20 = indicators.get('ema_20', price)
+        ema_50 = indicators.get('ema_50', price)
+        macd_diff = indicators.get('macd_diff', 0)
+        bb_upper = indicators.get('bb_upper', price * 1.002)
+        bb_lower = indicators.get('bb_lower', price * 0.998)
+        bb_mid = indicators.get('bb_middle', price)
+
+        # Análisis de las últimas 4 velas
+        last_4 = df.tail(4)
+        c0, o0, h0, l0 = float(last_4['close'].iloc[-1]), float(last_4['open'].iloc[-1]), float(last_4['high'].iloc[-1]), float(last_4['low'].iloc[-1])
+        c1, o1 = float(last_4['close'].iloc[-2]), float(last_4['open'].iloc[-2])
+        c2, o2 = float(last_4['close'].iloc[-3]), float(last_4['open'].iloc[-3])
+
+        candle_range = max(h0 - l0, 1e-6)
+        top_wick = h0 - max(c0, o0)
+        bottom_wick = min(c0, o0) - l0
+        body = abs(c0 - o0)
+
+        # Regla Anti-Trampas: 3 velas consecutivas del mismo color
+        consec_green = (c0 > o0) and (c1 > o1) and (c2 > o2)
+        consec_red = (c0 < o0) and (c1 < o1) and (c2 < o2)
+
+        # Medir fuerza de tendencia por separación de EMAs
+        ema_spread = abs(ema_20 - ema_50) / (ema_50 or 1.0) * 100
+        is_trending = ema_spread > 0.035
+        is_uptrend = ema_20 > ema_50 and price > ema_50
+        is_downtrend = ema_20 < ema_50 and price < ema_50
+
+        direction = None
+        conf = 0
+
+        # ====================================================================
+        # RÉGIMEN 1: TENDENCIA FUERTE (SEGUIR TENDENCIA EN PULLBACK)
+        # ====================================================================
+        if is_trending:
+            # En tendencia alcista fuerte -> SOLO CALL en retroceso
+            if is_uptrend and not consec_red:
+                if price <= ema_20 * 1.0005 and rsi5 < 48 and macd_diff > -0.0002:
+                    # Rebote en soporte dinámico (EMA 20)
+                    if bottom_wick > body * 0.4 or c0 > o0:
+                        direction = 'call'
+                        conf = 75
+                        if stoch5_k < 35: conf += 6
+                        if bottom_wick > top_wick: conf += 5
+                        if macd_diff > 0: conf += 4
+
+            # En tendencia bajista fuerte -> SOLO PUT en retroceso
+            elif is_downtrend and not consec_green:
+                if price >= ema_20 * 0.9995 and rsi5 > 52 and macd_diff < 0.0002:
+                    # Rechazo en resistencia dinámica (EMA 20)
+                    if top_wick > body * 0.4 or c0 < o0:
+                        direction = 'put'
+                        conf = 75
+                        if stoch5_k > 65: conf += 6
+                        if top_wick > bottom_wick: conf += 5
+                        if macd_diff < 0: conf += 4
+
+        # ====================================================================
+        # RÉGIMEN 2: RANGO / MERCADO LATERAL (REBOTES EN BANDAS DE BOLLINGER)
+        # ====================================================================
+        else:
+            # CALL en banda inferior (con rechazo claro)
+            if price <= bb_lower * 1.0003 and rsi5 < 32 and not consec_red:
+                if bottom_wick >= candle_range * 0.25 or stoch5_k < 22:
+                    direction = 'call'
+                    conf = 74
+                    if rsi5 < 20: conf += 6
+                    if stoch5_k < stoch5_d: conf += 4
+                    if bottom_wick > top_wick * 1.5: conf += 6
+
+            # PUT en banda superior (con rechazo claro)
+            elif price >= bb_upper * 0.9997 and rsi5 > 68 and not consec_green:
+                if top_wick >= candle_range * 0.25 or stoch5_k > 78:
+                    direction = 'put'
+                    conf = 74
+                    if rsi5 > 80: conf += 6
+                    if stoch5_k > stoch5_d: conf += 4
+                    if top_wick > bottom_wick * 1.5: conf += 6
+
+        # Veto final de protección anti-trampa
+        if direction == 'put' and consec_green:
+            logger.info("🚫 VETO IA: Bloqueada señal PUT por ráfaga de 3 velas verdes consecutivas")
+            return signal
+        if direction == 'call' and consec_red:
+            logger.info("🚫 VETO IA: Bloqueada señal CALL por ráfaga de 3 velas rojas consecutivas")
+            return signal
+
+        if direction and conf >= 70:
+            signal['direction'] = direction
+            signal['confidence'] = min(conf, 93)
+
+        return signal
+
     def _conservative_rsi_signal(self, indicators: dict, df: pd.DataFrame) -> dict:
         """
         RSI(5) rápido + EMA tendencia.
