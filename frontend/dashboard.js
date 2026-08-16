@@ -140,21 +140,22 @@ function hideLoading() {
  */
 async function apiFetch(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
+  const userId = sessionStorage.getItem('userId') || (sessionStorage.getItem('userEmail') ? sessionStorage.getItem('userEmail').split('@')[0] : '');
   
   // Configuración base
   const fetchOptions = {
     credentials: "include",  // ✅ Enviar cookies
     mode: "cors",
-    ...options
+    ...options,
+    headers: {
+      ...(userId ? { "X-User-Id": userId } : {}),
+      ...(options.headers || {})
+    }
   };
 
   // ✅ CRÍTICO: SOLO agregar Content-Type si hay body
-  // Esto evita preflight OPTIONS innecesario en peticiones GET
   if (options.body) {
-    fetchOptions.headers = {
-      ...fetchOptions.headers,
-      "Content-Type": "application/json"
-    };
+    fetchOptions.headers["Content-Type"] = "application/json";
     
     // Convertir body a JSON si es un objeto
     if (typeof options.body === 'object') {

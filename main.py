@@ -727,10 +727,10 @@ CORS(
     app,
     resources={r"/*": {"origins": allowed_origins}},
     supports_credentials=True,
-    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "X-User-Id", "x-user-id", "Cookie"],
     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     expose_headers=["Content-Type", "X-Total-Count", "Set-Cookie"],
-    max_age=3600  # Cache preflight por 1 hora
+    max_age=3600
 )
 
 
@@ -751,7 +751,7 @@ logger.info("🔌 Configurando WebSocket...")
 
 socketio = SocketIO(
     app,
-    cors_allowed_origins=allowed_origins,
+    cors_allowed_origins="*",
     async_mode=ASYNC_MODE,
     logger=True,
     engineio_logger=False,
@@ -1397,7 +1397,7 @@ def after_request(response):
     if origin:
         response.headers['Access-Control-Allow-Origin'] = origin
         response.headers['Access-Control-Allow-Credentials'] = 'true'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept, Cookie'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept, Cookie, X-User-Id, x-user-id'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
     response.headers.setdefault('Vary', 'Origin')
     response.headers['X-Content-Type-Options'] = 'nosniff'
