@@ -1,0 +1,277 @@
+# websocket_patch.py - Parche para el error de WebSocket en IQOptionAPI
+"""
+Parche para solucionar el error:
+"WebsocketClient.on_close() takes 1 positional argument but 3 were given"
+
+Este error ocurre debido a incompatibilidades entre versiones de websocket-client
+y la implementación en IQOptionAPI.
+"""
+
+import sys
+import logging
+from functools import wraps
+
+logger = logging.getLogger(__name__)
+
+def patch_iqoption_websocket():
+    """
+    Aplica parche a IQOptionAPI para solucionar problemas de WebSocket
+    """
+    try:
+        # Verificar si IQOptionAPI está instalada
+        import iqoptionapi
+        from iqoptionapi.ws.client import WebsocketClient
+        
+        # Guardar métodos originales
+        original_on_close = WebsocketClient.on_close
+        original_on_error = WebsocketClient.on_error
+        original_on_open = WebsocketClient.on_open
+        
+        # Nuevo método on_close que acepta argumentos variables
+        def patched_on_close(self, ws=None, close_status_code=None, close_msg=None):
+            """
+            Método on_close parcheado que acepta argumentos variables
+            según la versión de websocket-client
+            """
+            try:
+                logger.debug(f"WebSocket closed - Code: {close_status_code}, Message: {close_msg}")
+                # Llamar al método original solo con self
+                if hasattr(original_on_close, '__self__'):
+                    # Si es un método bound, llamarlo directamente
+                    pass  # El método original no hace nada especial
+                else:
+                    # Si es unbound, llamarlo con self
+                    original_on_close(self)
+            except Exception as e:
+                logger.error(f"Error en on_close parcheado: {e}")
+        
+        # Nuevo método on_error que acepta argumentos variables  
+        def patched_on_error(self, ws=None, error=None):
+            """
+            Método on_error parcheado que acepta argumentos variables
+            """
+            try:
+                logger.error(f"WebSocket error: {error}")
+                # Llamar al método original
+                if hasattr(original_on_error, '__self__'):
+                    pass
+                else:
+                    original_on_error(self, error if error else ws)
+            except Exception as e:
+                logger.error(f"Error en on_error parcheado: {e}")
+        
+        # Nuevo método on_open que acepta argumentos variables
+        def patched_on_open(self, ws=None):
+            """
+            Método on_open parcheado que acepta argumentos variables
+            """
+            try:
+                logger.debug("WebSocket connection opened")
+                # Llamar al método original
+                if hasattr(original_on_open, '__self__'):
+                    pass
+                else:
+                    original_on_open(self)
+            except Exception as e:
+                logger.error(f"Error en on_open parcheado: {e}")
+        
+        # Aplicar parches
+        WebsocketClient.on_close = patched_on_close
+        WebsocketClient.on_error = patched_on_error  
+        WebsocketClient.on_open = patched_on_open
+        
+        logger.info("✅ Parche de WebSocket aplicado correctamente")
+        return True
+        
+    except ImportError:
+        logger.error("❌ IQOptionAPI no está instalada")
+        return False
+    except Exception as e:
+        logger.error(f"❌ Error aplicando parche de WebSocket: {e}")
+        return False
+
+def force_websocket_client_version():
+    """
+    Fuerza la instalación de una versión compatible de websocket-client
+    """
+    try:
+        import subprocess
+        import sys
+        
+        # Versión compatible conocida
+        compatible_version = "1.1.0"
+        
+        logger.info(f"Instalando websocket-client=={compatible_version}")
+        
+        # Desinstalar versión actual
+        subprocess.check_call([
+            sys.executable, "-m", "pip", "uninstall", "-y", "websocket-client"
+        ])
+        
+        # Instalar versión compatible
+        subprocess.check_call([
+            sys.executable, "-m", "pip", "install", f"websocket-client=={compatible_version}"
+        ])
+        
+        logger.info("✅ websocket-client instalado correctamente")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Error instalando websocket-client: {e}")
+        return False
+
+def create_websocket_wrapper():
+    """
+    Crea un wrapper para WebSocketApp que maneja automáticamente
+    las diferencias de versión en los callbacks
+    """
+    try:
+        import websocket
+        from websocket import WebSocketApp
+        
+        class CompatibleWebSocketApp(WebSocketApp):
+            """
+            WebSocketApp compatible que maneja automáticamente
+            las diferencias de versión en callbacks
+            """
+            
+            def __init__(self, url, **kwargs):
+                # Wrapper para callbacks que acepta argumentos variables
+                def wrap_callback(callback):
+                    if callback is None:
+                        return None
+                        
+                    @wraps(callback)
+                    def wrapper(*args, **kwargs):
+                        try:
+                            # Intentar llamar con diferentes números de argumentos
+                            if len(args) == 1:
+                                # Solo self/ws
+                                return callback(args[0])
+                            elif len(args) == 2:
+                                # self/ws + 1 argumento
+                                return callback(args[0], args[1])
+                            elif len(args) == 3:
+                                # self/ws + 2 argumentos
+                                return callback(args[0], args[1], args[2])
+                            elif len(args) >= 4:
+                                # self/ws + 3+ argumentos
+                                return callback(args[0], args[1], args[2])
+                            else:
+                                return callback(*args, **kwargs)
+                        except TypeError as e:
+                            if "positional argument" in str(e):
+                                # Error de argumentos, intentar con menos argumentos
+                                try:
+                                    return callback(args[0])
+                                except:
+                                    logger.error(f"Error en callback wrapper: {e}")
+                            else:
+                                raise
+                    return wrapper
+                
+                # Wrappear callbacks
+                if 'on_open' in kwargs:
+                    kwargs['on_open'] = wrap_callback(kwargs['on_open'])
+                if 'on_close' in kwargs:
+                    kwargs['on_close'] = wrap_callback(kwargs['on_close'])
+                if 'on_error' in kwargs:
+                    kwargs['on_error'] = wrap_callback(kwargs['on_error'])
+                if 'on_message' in kwargs:
+                    kwargs['on_message'] = wrap_callback(kwargs['on_message'])
+                
+                super().__init__(url, **kwargs)
+        
+        # Reemplazar WebSocketApp original
+        websocket.WebSocketApp = CompatibleWebSocketApp
+        
+        logger.info("✅ WebSocket wrapper creado correctamente")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Error creando WebSocket wrapper: {e}")
+        return False
+
+def apply_comprehensive_websocket_fix():
+    """
+    Aplica una solución completa para los problemas de WebSocket
+    """
+    logger.info("🔧 Aplicando solución completa para WebSocket...")
+    
+    success_count = 0
+    
+    # 1. Crear wrapper compatible
+    if create_websocket_wrapper():
+        success_count += 1
+        logger.info("✅ 1/3 - WebSocket wrapper aplicado")
+    else:
+        logger.warning("⚠️ 1/3 - WebSocket wrapper falló")
+    
+    # 2. Aplicar parche a IQOptionAPI
+    if patch_iqoption_websocket():
+        success_count += 1
+        logger.info("✅ 2/3 - Parche IQOptionAPI aplicado")
+    else:
+        logger.warning("⚠️ 2/3 - Parche IQOptionAPI falló")
+    
+    # 3. Verificar versión de websocket-client
+    try:
+        import websocket
+        version = getattr(websocket, '__version__', 'unknown')
+        logger.info(f"📋 websocket-client version: {version}")
+        success_count += 1
+        logger.info("✅ 3/3 - Verificación de versión completada")
+    except:
+        logger.warning("⚠️ 3/3 - No se pudo verificar versión")
+    
+    if success_count >= 2:
+        logger.info("🎉 Solución de WebSocket aplicada exitosamente")
+        return True
+    else:
+        logger.error("❌ Solución de WebSocket falló")
+        return False
+
+# Función para integrar en main.py
+def init_websocket_patch():
+    """
+    Inicializa el parche de WebSocket.
+    Llamar al inicio de main.py
+    """
+    logger.info("🚀 Inicializando parche de WebSocket...")
+    return apply_comprehensive_websocket_fix()
+
+if __name__ == "__main__":
+    # Test del parche
+    logging.basicConfig(level=logging.INFO)
+    init_websocket_patch()
+
+# ============================================================================
+# INTEGRACIÓN EN main.py
+# ============================================================================
+
+"""
+Para integrar este parche en tu main.py, agrega estas líneas al inicio:
+
+# Al inicio de main.py, después de los imports estándar
+import sys
+import os
+
+# Agregar el parche de websocket
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from websocket_patch import init_websocket_patch
+
+# Aplicar parche antes de importar IQOptionAPI
+logger.info("🔧 Aplicando parche de WebSocket...")
+if not init_websocket_patch():
+    logger.warning("⚠️ Parche de WebSocket falló, continuando...")
+
+# Luego continuar con el import normal de IQOptionAPI
+try:
+    from iqoptionapi.stable_api import IQ_Option
+    IQ_AVAILABLE = True
+    logger.info("✅ IQOptionAPI cargada correctamente")
+except ImportError as e:
+    logger.error(f"❌ Error importando IQOptionAPI: {e}")
+    IQ_AVAILABLE = False
+    raise Exception("IQOptionAPI no está instalada")
+"""

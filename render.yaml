@@ -1,0 +1,29 @@
+services:
+  # Web service
+  - type: web
+    name: iqoption-bot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -c gunicorn_config.py wsgi:app
+
+
+
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: SECRET_KEY
+        generateValue: true
+      - key: FLASK_ENV
+        value: production
+      - key: REDIS_URL
+        fromService:
+          name: iqoption-redis
+          type: redis
+          property: connectionString
+    healthCheckPath: /health
+    
+  # Redis service for sessions
+  - type: redis
+    name: iqoption-redis
+    plan: starter
+    maxmemoryPolicy: allkeys-lru

@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BotIQ • Auto Trading Terminal</title>
+  <meta name="theme-color" content="#030610">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    /* =============================================
+       RESET & BASE
+    ============================================= */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-dark:      #030610;
+      --panel-bg:     rgba(10, 15, 30, 0.7);
+      --border-color: rgba(0, 243, 255, 0.2);
+      
+      --neon-cyan:    #00f3ff;
+      --neon-blue:    #0077ff;
+      --neon-green:   #00ff66;
+      --neon-red:     #ff003c;
+      --neon-purple:  #9d00ff;
+
+      --text-main:    #e0f7fa;
+      --text-muted:   #6b8ca3;
+
+      --font-display: 'Orbitron', sans-serif;
+      --font-body:    'Rajdhani', sans-serif;
+      --font-mono:    'Share Tech Mono', monospace;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: var(--font-body);
+      background: var(--bg-dark);
+      color: var(--text-main);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* =============================================
+       FUTURISTIC TRADING BACKGROUND
+    ============================================= */
+    .bg-container {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background: radial-gradient(circle at 50% 50%, #061226 0%, var(--bg-dark) 100%);
+      overflow: hidden;
+    }
+
+    /* Grid Overlay */
+    .bg-grid {
+      position: absolute;
+      inset: -50%;
+      background-image: 
+        linear-gradient(rgba(0, 243, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 243, 255, 0.05) 1px, transparent 1px);
+      background-size: 50px 50px;
+      transform: perspective(1000px) rotateX(60deg) translateY(-100px) translateZ(-200px);
+      animation: gridMove 15s linear infinite;
+    }
+
+    @keyframes gridMove {
+      0% { transform: perspective(1000px) rotateX(60deg) translateY(0) translateZ(-200px); }
+      100% { transform: perspective(1000px) rotateX(60deg) translateY(50px) translateZ(-200px); }
+    }
+
+    /* Simulated Candlesticks */
+    .candlestick {
+      position: absolute;
+      bottom: 0;
+      width: 4px;
+      border-radius: 2px;
+      opacity: 0.15;
+      animation: candleRise 10s infinite ease-in-out alternate;
+    }
+    
+    .candlestick::before {
+      content: '';
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 1px;
+      height: 150%;
+      top: -25%;
+    }
+
+    .c-green { background: var(--neon-green); box-shadow: 0 0 10px var(--neon-green); }
+    .c-green::before { background: var(--neon-green); }
+    .c-red { background: var(--neon-red); box-shadow: 0 0 10px var(--neon-red); }
+    .c-red::before { background: var(--neon-red); }
+
+    /* Auto-generate some static candles for visual effect */
+    .candlestick:nth-child(1) { left: 10%; height: 120px; animation-delay: 0s; }
+    .candlestick:nth-child(2) { left: 20%; height: 80px; animation-delay: -2s; }
+    .candlestick:nth-child(3) { left: 30%; height: 180px; animation-delay: -5s; }
+    .candlestick:nth-child(4) { left: 40%; height: 140px; animation-delay: -1s; }
+    .candlestick:nth-child(5) { left: 60%; height: 90px; animation-delay: -7s; }
+    .candlestick:nth-child(6) { left: 70%; height: 210px; animation-delay: -3s; }
+    .candlestick:nth-child(7) { left: 80%; height: 130px; animation-delay: -6s; }
+    .candlestick:nth-child(8) { left: 90%; height: 170px; animation-delay: -4s; }
+
+    @keyframes candleRise {
+      0% { transform: scaleY(0.8); }
+      100% { transform: scaleY(1.3); }
+    }
+
+    /* Data streams / Matrix effect lines */
+    .data-stream {
+      position: absolute;
+      width: 1px;
+      background: linear-gradient(to bottom, transparent, var(--neon-cyan), transparent);
+      animation: streamFall 4s linear infinite;
+      opacity: 0.3;
+    }
+
+    @keyframes streamFall {
+      0% { transform: translateY(-100vh); }
+      100% { transform: translateY(100vh); }
+    }
+
+    /* =============================================
+       TERMINAL UI
+    ============================================= */
+    .terminal-wrapper {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      max-width: 460px;
+      padding: 2rem;
+    }
+
+    .terminal-card {
+      position: relative;
+      background: var(--panel-bg);
+      backdrop-filter: blur(15px);
+      -webkit-backdrop-filter: blur(15px);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      box-shadow: 
+        0 0 40px rgba(0, 243, 255, 0.05),
+        inset 0 0 20px rgba(0, 243, 255, 0.05);
+      padding: 2.5rem;
+      clip-path: polygon(
+        0 15px, 
+        15px 0, 
+        100% 0, 
+        100% calc(100% - 15px), 
+        calc(100% - 15px) 100%, 
+        0 100%
+      );
+      animation: terminalGlitch 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+    }
+
+    @keyframes terminalGlitch {
+      0% { opacity: 0; transform: scale(0.98) translateY(20px); filter: hue-rotate(-90deg); }
+      50% { opacity: 0.5; filter: hue-rotate(90deg); }
+      100% { opacity: 1; transform: scale(1) translateY(0); filter: hue-rotate(0deg); }
+    }
+
+    /* Sci-fi Corners */
+    .terminal-card::before, .terminal-card::after {
+      content: '';
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--neon-cyan);
+      pointer-events: none;
+    }
+    .terminal-card::before {
+      top: 0; left: 0;
+      border-right: none; border-bottom: none;
+      box-shadow: -4px -4px 10px rgba(0, 243, 255, 0.3);
+    }
+    .terminal-card::after {
+      bottom: 0; right: 0;
+      border-left: none; border-top: none;
+      box-shadow: 4px 4px 10px rgba(0, 243, 255, 0.3);
+    }
+
+    /* =============================================
+       HEADER
+    ============================================= */
+    .header {
+      text-align: center;
+      margin-bottom: 2rem;
+      position: relative;
+    }
+
+    .logo {
+      font-family: var(--font-display);
+      font-size: 2.5rem;
+      font-weight: 900;
+      letter-spacing: 4px;
+      color: #fff;
+      text-shadow: 0 0 10px var(--neon-cyan), 0 0 20px var(--neon-blue);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .logo i {
+      font-size: 2rem;
+      color: var(--neon-cyan);
+      filter: drop-shadow(0 0 8px var(--neon-cyan));
+    }
+
+    .subtitle {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--neon-cyan);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      opacity: 0.8;
+    }
+
+    /* Cyber Ticker */
+    .cyber-ticker {
+      margin-top: 1.5rem;
+      background: rgba(0, 243, 255, 0.05);
+      border-left: 3px solid var(--neon-cyan);
+      padding: 8px 15px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .ticker-dot {
+      width: 8px; height: 8px;
+      background: var(--neon-green);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--neon-green);
+      animation: pulseAlert 1.5s infinite;
+    }
+    @keyframes pulseAlert {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.8); }
+    }
+
+    /* =============================================
+       FORM ELEMENTS
+    ============================================= */
+    .form-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .label {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--neon-cyan);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .input-wrapper {
+      position: relative;
+    }
+
+    .input-wrapper i {
+      position: absolute;
+      left: 15px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 1rem;
+      transition: color 0.3s, text-shadow 0.3s;
+    }
+
+    .input-field {
+      width: 100%;
+      background: rgba(0, 15, 30, 0.6);
+      border: 1px solid var(--border-color);
+      padding: 12px 15px 12px 45px;
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      outline: none;
+      transition: all 0.3s ease;
+      clip-path: polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%);
+    }
+
+    .input-field:focus {
+      border-color: var(--neon-cyan);
+      background: rgba(0, 243, 255, 0.05);
+      box-shadow: inset 0 0 10px rgba(0, 243, 255, 0.1);
+    }
+
+    .input-field:focus + i, .input-wrapper:focus-within i {
+      color: var(--neon-cyan);
+      text-shadow: 0 0 8px var(--neon-cyan);
+    }
+
+    .input-field::placeholder {
+      color: rgba(107, 140, 163, 0.4);
+    }
+
+    .toggle-pw {
+      position: absolute;
+      right: 15px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 1rem;
+      transition: color 0.3s;
+    }
+    .toggle-pw:hover { color: var(--neon-cyan); }
+
+    /* Account Toggle */
+    .acc-toggle {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 1.5rem;
+    }
+
+    .acc-btn {
+      flex: 1;
+      background: rgba(0, 15, 30, 0.6);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 10px;
+      font-family: var(--font-display);
+      font-size: 0.8rem;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+    }
+
+    .acc-btn:hover {
+      background: rgba(0, 243, 255, 0.1);
+      color: var(--text-main);
+    }
+
+    .acc-btn.active {
+      border-color: var(--neon-cyan);
+      color: var(--neon-cyan);
+      background: rgba(0, 243, 255, 0.15);
+      box-shadow: 0 0 15px rgba(0, 243, 255, 0.2);
+      text-shadow: 0 0 5px var(--neon-cyan);
+    }
+
+    .acc-btn.real.active {
+      border-color: var(--neon-green);
+      color: var(--neon-green);
+      background: rgba(0, 255, 102, 0.15);
+      box-shadow: 0 0 15px rgba(0, 255, 102, 0.2);
+      text-shadow: 0 0 5px var(--neon-green);
+    }
+
+    /* =============================================
+       BUTTONS & MESSAGES
+    ============================================= */
+    .btn-submit {
+      width: 100%;
+      background: transparent;
+      border: 1px solid var(--neon-cyan);
+      color: var(--neon-cyan);
+      font-family: var(--font-display);
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      padding: 15px;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s;
+      clip-path: polygon(0 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%);
+      text-transform: uppercase;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-submit::before {
+      content: '';
+      position: absolute;
+      top: 0; left: -100%;
+      width: 100%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(0, 243, 255, 0.4), transparent);
+      transition: all 0.5s;
+    }
+
+    .btn-submit:hover:not(:disabled) {
+      background: rgba(0, 243, 255, 0.2);
+      box-shadow: 0 0 20px rgba(0, 243, 255, 0.4);
+      text-shadow: 0 0 5px var(--neon-cyan);
+    }
+
+    .btn-submit:hover::before {
+      left: 100%;
+      animation: scanline 2s linear infinite;
+    }
+
+    .btn-submit:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      border-color: var(--text-muted);
+      color: var(--text-muted);
+    }
+
+    .spinner {
+      width: 20px; height: 20px;
+      border: 2px solid transparent;
+      border-top-color: var(--neon-cyan);
+      border-right-color: var(--neon-cyan);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: none;
+    }
+
+    .btn-submit.loading .spinner { display: block; }
+    .btn-submit.loading .btn-text { display: none; }
+    .btn-submit.loading .fa-power-off { display: none; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-box {
+      margin-bottom: 1.5rem;
+      padding: 10px 15px;
+      background: rgba(255, 0, 60, 0.1);
+      border-left: 3px solid var(--neon-red);
+      color: #ff6685;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      animation: slideIn 0.3s ease;
+    }
+
+    .error-box.visible { display: flex; }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(-10px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    .footer-info {
+      margin-top: 1.5rem;
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .sys-status {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin-top: 2rem;
+    }
+
+    .sys-badge {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      padding: 4px 10px;
+      border: 1px solid var(--border-color);
+      color: var(--neon-cyan);
+      background: rgba(0, 243, 255, 0.05);
+      border-radius: 2px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .sys-badge.secure { color: var(--neon-green); border-color: rgba(0, 255, 102, 0.3); }
+
+    /* =============================================
+       TOAST
+    ============================================= */
+    .toast {
+      position: fixed;
+      bottom: 30px;
+      right: 30px;
+      background: rgba(0, 15, 30, 0.9);
+      border: 1px solid var(--neon-cyan);
+      border-left: 4px solid var(--neon-cyan);
+      padding: 15px 20px;
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      box-shadow: 0 0 20px rgba(0, 243, 255, 0.2);
+      transform: translateX(120%);
+      transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
+    }
+
+    .toast.show { transform: translateX(0); }
+    .toast i { color: var(--neon-cyan); font-size: 1.2rem; }
+
+  </style>
+</head>
+
+<body>
+
+  <!-- BACKGROUND ELEMENTS -->
+  <div class="bg-container">
+    <div class="bg-grid"></div>
+    <div class="candlestick c-green"></div>
+    <div class="candlestick c-red"></div>
+    <div class="candlestick c-green"></div>
+    <div class="candlestick c-red"></div>
+    <div class="candlestick c-green"></div>
+    <div class="candlestick c-red"></div>
+    <div class="candlestick c-green"></div>
+    <div class="candlestick c-red"></div>
+    
+    <div class="data-stream" style="left: 15%; animation-duration: 3s; animation-delay: 1s;"></div>
+    <div class="data-stream" style="left: 45%; animation-duration: 5s; animation-delay: 0s;"></div>
+    <div class="data-stream" style="left: 75%; animation-duration: 4s; animation-delay: 2s;"></div>
+    <div class="data-stream" style="left: 85%; animation-duration: 6s; animation-delay: 0.5s;"></div>
+  </div>
+
+  <div class="terminal-wrapper">
+    <div class="terminal-card">
+      
+      <!-- HEADER -->
+      <div class="header">
+        <div class="logo">
+          <i class="fas fa-robot"></i> BotIQ
+        </div>
+        <div class="subtitle">Algorithmic Trading Terminal v2.0</div>
+        
+        <div class="cyber-ticker">
+          <div class="ticker-dot"></div>
+          <span id="tickerText">SYS.READY // Awaiting Authentication</span>
+        </div>
+      </div>
+
+      <!-- FORM -->
+      <form id="loginForm" onsubmit="return false" autocomplete="off">
+        
+        <div class="acc-toggle">
+          <button type="button" class="acc-btn active" id="accPractice" onclick="setAccType('PRACTICE')">
+            <i class="fas fa-flask"></i> DEMO
+          </button>
+          <button type="button" class="acc-btn real" id="accReal" onclick="setAccType('REAL')">
+            <i class="fas fa-wallet"></i> LIVE
+          </button>
+        </div>
+
+        <div class="form-group">
+          <label class="label" for="email">
+            <i class="fas fa-satellite-dish"></i> IQ Option Node Address
+          </label>
+          <div class="input-wrapper">
+            <i class="fas fa-envelope"></i>
+            <input class="input-field" id="email" type="email" placeholder="user@node.network" autocomplete="username" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="label" for="password">
+            <i class="fas fa-fingerprint"></i> Authentication Key
+          </label>
+          <div class="input-wrapper">
+            <i class="fas fa-key"></i>
+            <input class="input-field" id="password" type="password" placeholder="••••••••••••" autocomplete="current-password" required>
+            <button type="button" class="toggle-pw" onclick="togglePassword()" tabindex="-1">
+              <i class="fas fa-eye" id="eyeIcon"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="error-box" id="errorMsg">
+          <i class="fas fa-exclamation-triangle"></i>
+          <span id="errorText">Access Denied</span>
+        </div>
+
+        <button type="submit" class="btn-submit" id="btnLogin" onclick="handleLogin()">
+          <i class="fas fa-power-off"></i>
+          <span class="btn-text">INITIALIZE LINK</span>
+          <div class="spinner"></div>
+        </button>
+
+        <div class="footer-info">
+          [WARN] First handshake may require 30-50s cold start.
+        </div>
+
+      </form>
+
+      <!-- SYS STATUS -->
+      <div class="sys-status">
+        <div class="sys-badge secure"><i class="fas fa-shield-alt"></i> SSL SECURE</div>
+        <div class="sys-badge"><i class="fas fa-network-wired"></i> API CONNECTED</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div class="toast" id="toast">
+    <i class="fas fa-check-circle"></i>
+    <span id="toastText">Link established.</span>
+  </div>
+
+  <script>
+    // =============================================
+    // CORE LOGIC & CONFIG
+    // =============================================
+    const API_BASE = (window.__CONFIG__?.API) || (window.location.protocol.startsWith('http') ? window.location.origin : '');
+    let accountType = "PRACTICE";
+
+    // UI Helpers
+    function toastMsg(msg, duration = 3000) {
+      const el = document.getElementById('toast');
+      document.getElementById('toastText').textContent = msg;
+      el.classList.add('show');
+      clearTimeout(el._t);
+      el._t = setTimeout(() => el.classList.remove('show'), duration);
+    }
+
+    function showError(msg) {
+      const box = document.getElementById('errorMsg');
+      document.getElementById('errorText').textContent = msg;
+      box.classList.add('visible');
+    }
+
+    function hideError() {
+      document.getElementById('errorMsg').classList.remove('visible');
+    }
+
+    function setLoading(on) {
+      const btn = document.getElementById('btnLogin');
+      btn.classList.toggle('loading', on);
+      btn.disabled = on;
+      document.getElementById('email').disabled = on;
+      document.getElementById('password').disabled = on;
+    }
+
+    function tickerSet(msg) {
+      document.getElementById('tickerText').textContent = msg;
+    }
+
+    // Account Type Selection
+    function setAccType(type) {
+      accountType = type;
+      document.getElementById('accPractice').classList.toggle('active', type === 'PRACTICE');
+      document.getElementById('accReal').classList.toggle('active', type === 'REAL');
+    }
+
+    // Password Visibility
+    function togglePassword() {
+      const input = document.getElementById('password');
+      const icon  = document.getElementById('eyeIcon');
+      const show  = input.type === 'password';
+      input.type  = show ? 'text' : 'password';
+      icon.className = show ? 'fas fa-eye-slash' : 'fas fa-eye';
+    }
+
+    // Login Handler
+    async function handleLogin() {
+      hideError();
+
+      const email    = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      if (!email) { showError('ERR: Missing Node Address.'); return; }
+      if (!password) { showError('ERR: Missing Auth Key.'); return; }
+
+      setLoading(true);
+      tickerSet('SYS.LINKING // Handshake in progress...');
+
+      try {
+        const res = await fetch(`${API_BASE}/api/login`, {
+          method: 'POST',
+          credentials: 'include',
+          mode: 'cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        let data = {};
+        try { data = await res.json(); } catch (_) {}
+
+        if (res.ok && data.success) {
+          sessionStorage.setItem('accountType', accountType);
+          sessionStorage.setItem('userEmail', email);
+          if (data.balance !== undefined) sessionStorage.setItem('lastKnownBalance', data.balance);
+          if (data.username) sessionStorage.setItem('username', data.username);
+
+          tickerSet('SYS.VERIFIED // Loading Dashboard...');
+          toastMsg('Access Granted');
+
+          setTimeout(() => {
+            window.location.href = 'dashboard.html';
+          }, 800);
+
+        } else {
+          const msg = data.message || data.error || `Error ${res.status}`;
+          showError(`ERR: ${msg}`);
+          tickerSet('SYS.HALTED // Auth Failed');
+          setLoading(false);
+        }
+
+      } catch (err) {
+        console.error('Login error:', err);
+        const msg = err.message?.includes('fetch')
+          ? 'Network timeout. Check proxy nodes.'
+          : err.message || 'Unknown Protocol Error';
+        showError(`SYS.ERR: ${msg}`);
+        tickerSet('SYS.DISCONNECTED // Node unreachable');
+        setLoading(false);
+      }
+    }
+
+    // Enter Key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handleLogin();
+    });
+
+    // Dynamic Terminal Ticker
+    const TICKERS = [
+      'SYS.READY // Awaiting Authentication',
+      'MONITORING // Real-time Candlestick Analysis',
+      'ALGO.STATUS // Core routines standing by',
+      'SECURE.LINK // E2E Encryption Active',
+      'BotIQ v2.0 // Automated Trading Protocol'
+    ];
+    let tickIdx = 0;
+    setInterval(() => {
+      tickIdx = (tickIdx + 1) % TICKERS.length;
+      tickerSet(TICKERS[tickIdx]);
+    }, 5000);
+
+    // Initial Focus
+    window.addEventListener('load', () => {
+      document.getElementById('email').focus();
+    });
+  </script>
+</body>
+</html>

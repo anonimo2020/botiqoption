@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BotIQ • Trading Terminal</title>
+  <meta name="theme-color" content="#0a0a0f">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Libraries -->
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
+  
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <!-- Animated Background -->
+  <div class="bg-container">
+    <div class="bg-gradient"></div>
+    <div class="bg-grid"></div>
+    <div class="bg-particles">
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+    </div>
+    <div class="bg-glow glow-1"></div>
+    <div class="bg-glow glow-2"></div>
+    <div class="bg-glow glow-3"></div>
+  </div>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <div class="header-left">
+        <!-- Brand -->
+        <div class="brand">
+          <div class="brand-icon">
+            <div class="icon-inner">
+              <i class="fas fa-robot"></i>
+            </div>
+            <div class="icon-ring"></div>
+            <div class="icon-pulse"></div>
+          </div>
+          <div class="brand-text">
+            <div class="brand-title">BotIQ</div>
+            <div class="brand-sub">TRADING TERMINAL</div>
+          </div>
+        </div>
+        
+        <!-- Connection Status -->
+        <div class="status-group">
+          <div class="status-pill" id="connectionStatus">
+            <div class="pill-glow"></div>
+            <div class="status-dot"></div>
+            <span class="status-text">Conectando</span>
+          </div>
+          
+          <div class="ws-badge" id="wsStatus">
+            <div class="ws-pulse"></div>
+            <div class="ws-dot"></div>
+            <span>WS</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="header-right">
+        <!-- Account Info -->
+        <div class="account-display">
+          <div class="account-balance-card">
+            <div class="balance-label">
+              <i class="fas fa-wallet"></i>
+              <span>Balance</span>
+            </div>
+            <div class="balance-value" id="headerBalance">
+              <span class="currency">$</span>
+              <span class="amount">0.00</span>
+            </div>
+            <div class="balance-shimmer"></div>
+          </div>
+          
+          <div class="account-user-card">
+            <div class="user-avatar">
+              <i class="fas fa-user-circle"></i>
+            </div>
+            <div class="user-info">
+              <span class="username" id="headerUsername">Usuario</span>
+              <span class="account-type" id="headerAccountType">PRÁCTICA</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Logout -->
+        <button class="btn-logout" onclick="handleLogout()">
+          <span class="btn-icon"><i class="fas fa-power-off"></i></span>
+          <span class="btn-text">Salir</span>
+          <div class="btn-glow"></div>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Grid -->
+  <main class="dashboard-grid">
+    <!-- Left Sidebar -->
+    <aside class="sidebar sidebar-left">
+      <!-- Bot Control Panel -->
+      <section class="panel panel-bot">
+        <div class="panel-header">
+          <div class="panel-title">
+            <div class="title-icon">
+              <i class="fas fa-robot"></i>
+            </div>
+            <h3>Control del Bot</h3>
+          </div>
+          <div class="status-badge" id="botStatusBadge">
+            <div class="badge-dot"></div>
+            <span>Detenido</span>
+          </div>
+        </div>
+        
+        <div class="panel-body">
+          <!-- Bot Actions -->
+          <div class="bot-actions">
+            <button class="btn-action btn-start" id="btnStartBot" onclick="handleStartBot()">
+              <div class="btn-shine"></div>
+              <div class="btn-content">
+                <i class="fas fa-play"></i>
+                <span>Iniciar Bot</span>
+              </div>
+            </button>
+            <button class="btn-action btn-stop" id="btnStopBot" onclick="handleStopBot()" disabled>
+              <div class="btn-shine"></div>
+              <div class="btn-content">
+                <i class="fas fa-stop"></i>
+                <span>Detener Bot</span>
+              </div>
+            </button>
+          </div>
+          
+          <!-- Stats Cards -->
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-icon"><i class="fas fa-chart-bar"></i></div>
+              <div class="stat-data">
+                <div class="stat-label">Operaciones</div>
+                <div class="stat-value" id="statOps">0</div>
+              </div>
+              <div class="stat-glow"></div>
+            </div>
+            
+            <div class="stat-card stat-success">
+              <div class="stat-icon"><i class="fas fa-arrow-trend-up"></i></div>
+              <div class="stat-data">
+                <div class="stat-label">Ganadas</div>
+                <div class="stat-value" id="statWins">0</div>
+              </div>
+              <div class="stat-glow"></div>
+            </div>
+            
+            <div class="stat-card stat-danger">
+              <div class="stat-icon"><i class="fas fa-arrow-trend-down"></i></div>
+              <div class="stat-data">
+                <div class="stat-label">Perdidas</div>
+                <div class="stat-value" id="statLosses">0</div>
+              </div>
+              <div class="stat-glow"></div>
+            </div>
+            
+            <div class="stat-card">
+              <div class="stat-icon"><i class="fas fa-percentage"></i></div>
+              <div class="stat-data">
+                <div class="stat-label">Tasa Éxito</div>
+                <div class="stat-value" id="statWinRate">0%</div>
+              </div>
+              <div class="stat-glow"></div>
+            </div>
+            
+            <div class="stat-card stat-wide stat-profit">
+              <div class="stat-icon"><i class="fas fa-coins"></i></div>
+              <div class="stat-data">
+                <div class="stat-label">Beneficio Total</div>
+                <div class="stat-value" id="statProfit">$0.00</div>
+              </div>
+              <div class="stat-glow"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Configuration Panel -->
+      <section class="panel panel-config">
+        <div class="panel-header">
+          <div class="panel-title">
+            <div class="title-icon">
+              <i class="fas fa-sliders-h"></i>
+            </div>
+            <h3>Configuración</h3>
+          </div>
+        </div>
+        
+        <div class="panel-body">
+          <div class="config-form">
+            <!-- Account Type -->
+            <div class="form-field">
+              <label class="field-label">
+                <i class="fas fa-user-shield"></i>
+                <span>Tipo de Cuenta</span>
+              </label>
+              <div class="account-switcher">
+                <button class="switch-option active" id="accPractice" onclick="switchAccount('PRACTICE')">
+                  <div class="option-check"></div>
+                  <i class="fas fa-flask"></i>
+                  <span>Práctica</span>
+                </button>
+                <button class="switch-option" id="accReal" onclick="switchAccount('REAL')">
+                  <div class="option-check"></div>
+                  <i class="fas fa-dollar-sign"></i>
+                  <span>Real</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Symbol -->
+            <div class="form-field">
+              <label class="field-label" for="symbol">
+                <i class="fas fa-chart-line"></i>
+                <span>Activo</span>
+              </label>
+              <div class="select-wrapper">
+                <select id="symbol" class="field-input">
+                  <option value="">Cargando activos...</option>
+                </select>
+                <i class="fas fa-chevron-down select-arrow"></i>
+              </div>
+            </div>
+
+            <!-- Strategy -->
+            <div class="form-field">
+              <label class="field-label" for="strategy">
+                <i class="fas fa-brain"></i>
+                <span>Estrategia</span>
+              </label>
+              <div class="select-wrapper">
+                <select id="strategy" class="field-input">
+                  <option value="">Cargando estrategias...</option>
+                </select>
+                <i class="fas fa-chevron-down select-arrow"></i>
+              </div>
+            </div>
+
+            <!-- Amount -->
+            <div class="form-field">
+              <label class="field-label" for="amount">
+                <i class="fas fa-sack-dollar"></i>
+                <span>Monto (USD)</span>
+              </label>
+              <div class="input-group">
+                <div class="input-wrapper">
+                  <span class="input-prefix">$</span>
+                  <input type="number" id="amount" class="field-input" value="1" min="1" step="0.5">
+                </div>
+                <button class="btn-optimal" onclick="calculateOptimalAmount()">
+                  <i class="fas fa-calculator"></i>
+                  <span>Óptimo</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Interés Compuesto LMTA -->
+            <div class="form-field">
+              <label class="field-label" for="useCompound">
+                <i class="fas fa-chart-line"></i>
+                <span>Interés Compuesto LMTA (5 niveles)</span>
+              </label>
+              <div class="input-group" style="align-items:center;gap:10px;">
+                <label class="toggle-switch" style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;">
+                  <input type="checkbox" id="useCompound" style="width:20px;height:20px;cursor:pointer;">
+                  <span id="compoundLabel" style="font-size:0.85rem;color:var(--text-muted,#888);">Desactivado</span>
+                </label>
+              </div>
+              <p style="font-size:0.75rem;color:var(--text-muted,#888);margin:4px 0 0;">
+                Cada ganancia reinvierte base + ganancia (máx. 5 niveles). Pausa automática tras 2 pérdidas seguidas.
+              </p>
+            </div>
+
+            <!-- Max Operations -->
+            <div class="form-field">
+              <label class="field-label" for="maxOps">
+                <i class="fas fa-list-ol"></i>
+                <span>Máximo de Operaciones</span>
+              </label>
+              <input type="number" id="maxOps" class="field-input" value="10" min="1">
+            </div>
+
+            <!-- Max Losses -->
+            <div class="form-field">
+              <label class="field-label" for="maxLoss">
+                <i class="fas fa-triangle-exclamation"></i>
+                <span>Pérdidas Consecutivas Máx.</span>
+              </label>
+              <input type="number" id="maxLoss" class="field-input" value="3" min="1">
+            </div>
+          </div>
+        </div>
+      </section>
+    </aside>
+
+    <!-- Center Content -->
+    <section class="main-content">
+      <!-- Chart Panel -->
+      <div class="panel panel-chart">
+        <div class="panel-header">
+          <div class="panel-title">
+            <div class="title-icon">
+              <i class="fas fa-chart-candlestick"></i>
+            </div>
+            <h3 id="chartTitle">Gráfico en Tiempo Real</h3>
+          </div>
+          
+          <div class="chart-controls">
+            <div class="chart-symbol-badge" id="chartSymbol">
+              <div class="symbol-dot"></div>
+              <span>—</span>
+            </div>
+            
+            <div class="timeframe-selector">
+              <button class="timeframe-btn">1m</button>
+              <button class="timeframe-btn active">5m</button>
+              <button class="timeframe-btn">15m</button>
+              <button class="timeframe-btn">1h</button>
+              <button class="timeframe-btn">4h</button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="panel-body">
+          <div id="chartContainer" class="chart-container">
+            <div class="chart-overlay">
+              <div class="chart-watermark">BotIQ</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Assets Panel -->
+      <div class="panel panel-assets">
+        <div class="panel-header">
+          <div class="panel-title">
+            <div class="title-icon">
+              <i class="fas fa-coins"></i>
+            </div>
+            <h3>Activos Disponibles</h3>
+          </div>
+          
+          <div class="assets-toolbar">
+            <div class="filter-chips">
+              <button class="chip active" id="fltAll" onclick="filterAssets('ALL')">
+                <span>Todos</span>
+              </button>
+              <button class="chip" id="fltNormal" onclick="filterAssets('NORMAL')">
+                <span>Normal</span>
+              </button>
+              <button class="chip" id="fltOtc" onclick="filterAssets('OTC')">
+                <span>OTC</span>
+              </button>
+            </div>
+            
+            <div class="search-box">
+              <i class="fas fa-search search-icon"></i>
+              <input type="text" id="assetSearch" placeholder="Buscar activo..." class="search-input">
+            </div>
+          </div>
+        </div>
+        
+        <div class="panel-body">
+          <div id="assetsGrid" class="assets-grid">
+            <div class="loading-placeholder">
+              <div class="loading-spinner"></div>
+              <span>Cargando activos...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Sidebar -->
+    <aside class="sidebar sidebar-right">
+      <!-- Activity Log -->
+      <section class="panel panel-log">
+        <div class="panel-header">
+          <div class="panel-title">
+            <div class="title-icon">
+              <i class="fas fa-terminal"></i>
+            </div>
+            <h3>Registro de Actividad</h3>
+          </div>
+          
+          <div class="log-actions">
+            <button class="icon-btn" onclick="clearLog()" title="Limpiar log">
+              <i class="fas fa-trash-can"></i>
+            </button>
+            <button class="icon-btn" onclick="copyLog()" title="Copiar log">
+              <i class="fas fa-copy"></i>
+            </button>
+          </div>
+        </div>
+        
+        <div class="panel-body">
+          <div id="log" class="activity-log">
+            <div class="log-welcome">
+              <i class="fas fa-rocket"></i>
+              <p>Sistema iniciado. Listo para operar.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Strategy Info -->
+      <section class="panel panel-strategy">
+        <div class="panel-header">
+          <div class="panel-title">
+            <div class="title-icon">
+              <i class="fas fa-lightbulb"></i>
+            </div>
+            <h3>Info Estrategia</h3>
+          </div>
+        </div>
+        
+        <div class="panel-body">
+          <div id="strategyInfo" class="strategy-info">
+            <div class="empty-strategy">
+              <div class="empty-icon">
+                <i class="fas fa-brain"></i>
+              </div>
+              <p>Selecciona una estrategia para ver los detalles</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast">
+    <div class="toast-icon"></div>
+    <div class="toast-content">
+      <span class="toast-message"></span>
+    </div>
+    <div class="toast-progress"></div>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="loading-box">
+      <div class="loading-logo">
+        <i class="fas fa-robot"></i>
+        <div class="logo-ring"></div>
+      </div>
+      <div class="loading-text">Cargando datos...</div>
+      <div class="loading-bar">
+        <div class="loading-progress"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="dashboard.js?v=4"></script>
+  <script>
+    document.getElementById('useCompound')?.addEventListener('change', function() {
+      const lbl = document.getElementById('compoundLabel');
+      if (lbl) lbl.textContent = this.checked ? 'ACTIVADO — 5 niveles LMTA' : 'Desactivado';
+      if (lbl) lbl.style.color = this.checked ? 'var(--accent-green, #00c853)' : 'var(--text-muted, #888)';
+    });
+  </script>
+</body>
+</html>
