@@ -297,46 +297,36 @@ class LocalMLPredictor:
 class GroqAdvisor:
     """
     Usa la API gratuita de Groq (groq.com) para obtener una
-    segunda opinión de LLaMA 3 sobre la señal técnica.
-
-    Configuración:
-        Añade GROQ_API_KEY=gsk_... en el archivo .env
-
-    Si no hay clave configurada la capa se desactiva silenciosamente.
+    evaluación en tiempo real de LLaMA 3.3 70B sobre la señal técnica.
     """
 
     API_URL = "https://api.groq.com/openai/v1/chat/completions"
-    MODEL   = "llama3-8b-8192"       # Gratuito, ~280 tokens/s
-    TIMEOUT = 4                       # segundos — crítico para no bloquear el bot
-
-    # Cooldown para no gastar cuota en análisis consecutivos idénticos
-    COOLDOWN_S = 15
+    MODEL   = "llama-3.3-70b-versatile"       # Modelo insignia de alta precisión
+    TIMEOUT = 4.0                             # segundos
+    COOLDOWN_S = 8                            # Cooldown optimizado
 
     def __init__(self):
         self.api_key  = os.getenv("GROQ_API_KEY", "").strip()
         self.enabled  = bool(self.api_key) and REQUESTS_OK
         self._last_ts = 0.0
-        self._cache   : dict = {}   # {cache_key: result}
+        self._cache   : dict = {}
 
         if self.enabled:
-            logger.info("🧠 Groq AI advisor activado (LLaMA 3 gratuito)")
+            logger.info("🧠 Groq AI advisor activado (LLaMA 3.3 70B Versatile)")
         else:
-            logger.info("ℹ️  Groq no configurado — solo se usa ML local "
-                        "(para activarlo: añade GROQ_API_KEY en .env)")
+            logger.info("ℹ️  Groq no configurado — usando ML local")
 
     def analyze(self, indicators: dict, symbol: str, ta_direction: str) -> dict:
         """
-        Envía los indicadores actuales a Groq y pide una recomendación.
-        Retorna {'available': bool, 'direction': 'call'|'put', 'confidence': 0-100}
+        Envía los indicadores y velas actuales a Groq y pide validación anti-trampa.
         """
         if not self.enabled:
             return {'available': False}
 
         now = _time.time()
         if now - self._last_ts < self.COOLDOWN_S:
-            return {'available': False}   # cooldown activo
+            return {'available': False}
 
-        # Cache key básico
         rsi   = round(indicators.get('rsi', 50), 1)
         trend = indicators.get('trend', '?')
         cache_key = f"{symbol}:{rsi}:{trend}:{ta_direction}"
@@ -351,8 +341,11 @@ class GroqAdvisor:
             }
             payload = {
                 "model": self.MODEL,
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 60,
+                "messages": [
+                    {"role": "system", "content": "You are a quantitative binary options risk engine. Detect trend traps. Output CALL, PUT or SKIP."},
+                    {"role": "user", "content": prompt}
+                ],
+                "max_tokens": 50,
                 "temperature": 0.1
             }
             resp = _req.post(

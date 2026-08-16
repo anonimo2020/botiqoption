@@ -1888,3 +1888,28 @@ body {
     grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   }
 }
+
+/* ==========================================================================
+   DESBLOQUEO DE SCROLL EN PC Y MÓVILES
+   ========================================================================== */
+html, body {
+  height: auto !important;
+  min-height: 100% !important;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  position: static !important;
+}
+
+.bg-container, .main-layout, .app-layout, .container, .dashboard-grid, .layout {
+  height: auto !important;
+  min-height: 100vh !important;
+  max-height: none !important;
+  overflow: visible !important;
+  position: static !important;
+}
+
+.sidebar-left, .sidebar-right, .main-chart-area, .panel-log {
+  height: auto !important;
+  max-height: none !important;
+}

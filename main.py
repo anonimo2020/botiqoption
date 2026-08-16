@@ -1272,6 +1272,19 @@ def resolve_strategy_id(payload: dict):
 
 STRATEGIES = {
     # ========================================================================
+    # ESTRATEGIA PRINCIPAL: IA ADAPTATIVA GROQ LLaMA 3.3 (AUTO-REGIME)
+    # ========================================================================
+    'ai_adaptive_auto': {
+        'name': '🤖 IA Adaptativa Groq (Auto-Regime)',
+        'description': 'LLaMA 3.3 70B analiza el mercado en tiempo real y selecciona la mejor estrategia',
+        'timeframe': 60,
+        'min_confidence': 70,
+        'risk_level': 'dynamic',
+        'indicators': ['ema', 'rsi', 'macd', 'bollinger', 'adx'],
+        'max_loss_multiplier': 2.0
+    },
+    
+    # ========================================================================
     # ESTRATEGIA 1: BOLLINGER BANDS + RSI BOUNCE
     # Rentabilidad: 70-75% | Mejor para: Mercados laterales
     # ========================================================================

@@ -810,6 +810,17 @@ function initChart() {
       },
       crosshair: {
         mode: LightweightCharts.CrosshairMode.Normal
+      },
+      handleScroll: {
+        mouseWheel: false,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: false
+      },
+      handleScale: {
+        mouseWheel: false,
+        pinch: true,
+        axisPressedMouseMove: true
       }
     });
 
