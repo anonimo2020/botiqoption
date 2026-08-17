@@ -1450,6 +1450,15 @@ function setupEventListeners() {
 async function init() {
   logLine("🚀 Iniciando dashboard...", "neutral");
 
+  const userId = sessionStorage.getItem('userId') || (sessionStorage.getItem('userEmail') ? sessionStorage.getItem('userEmail').split('@')[0] : '');
+  if (!userId) {
+    logLine("🔒 Sesión no encontrada. Redirigiendo al login...", "warn");
+    setTimeout(() => {
+      window.location.href = "index.html";
+    }, 1200);
+    return;
+  }
+
   // ✅ PASO 1: VALIDAR SESIÓN ANTES DE TODO
   try {
     const sessionData = await apiFetch("/api/validate_session");
@@ -1464,7 +1473,6 @@ async function init() {
   } catch (error) {
     console.error("Error validando sesión:", error);
     logLine(`⚠️ Advertencia al validar sesión: ${error.message}`, "warn");
-    // No redirigir inmediatamente en caso de error de red temporal para evitar loops
     if (error.message.includes('SESSION_EXPIRED') || error.message.includes('401')) {
       handleSessionExpired("Sesión no válida");
       return;
