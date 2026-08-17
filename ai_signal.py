@@ -475,9 +475,9 @@ class AISignalEnhancer:
                     ai_votes_against += 1
                     groq_note = f"Groq ❌ {groq_result['direction'].upper()}"
 
-        # ── Calcular confianza final ──────────────────────────
-        boost   = ai_votes_for     * 6    # +6% por voto a favor
-        penalty = ai_votes_against * 15   # -15% por voto en contra (penalización más agresiva)
+        # ── Calcular confianza final equilibrada ──────────────
+        boost   = ai_votes_for     * 5    # +5% por voto a favor
+        penalty = ai_votes_against * 7    # -7% por voto en contra (penalización equilibrada)
 
         final_conf = min(95, max(0, ta_conf + boost - penalty))
 
