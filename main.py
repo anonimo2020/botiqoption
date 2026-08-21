@@ -2936,6 +2936,7 @@ class TradingBot:
                 signal['confidence'] = max(signal['confidence'] - 3, 0)
 
         # ── Filtro HTF: penalizar (-10%) si va contra la tendencia de 5 minutos ──
+        htf_trend = indicators.get('htf_trend', 'neutral')
         if signal and signal.get('direction') and htf_trend != 'neutral':
             if (signal['direction'] == 'call' and htf_trend == 'down') or \
                (signal['direction'] == 'put' and htf_trend == 'up'):
@@ -2946,6 +2947,8 @@ class TradingBot:
                     return {'direction': None, 'confidence': 0, 'indicators': indicators}
                 signal['confidence'] = penalized
                 logger.info(f"   ⚠️ HTF contrario: confianza reducida a {penalized:.0f}%")
+
+        return signal if signal and signal.get('confidence', 0) > 0 else None
 
     def _ai_adaptive_auto_signal(self, indicators: dict, df: pd.DataFrame) -> dict:
         """
